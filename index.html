@@ -493,7 +493,7 @@
 
             let audioTracks = [];
             
-            // Prioritas 1: Ambil stream langsung dari elemen audio (paling stabil untuk di-download)
+            // Prioritas 1: Ambil stream langsung dari elemen audio
             if (typeof audioRef.current.captureStream === 'function') {
                 const aStream = audioRef.current.captureStream();
                 if (aStream) audioTracks = aStream.getAudioTracks();
@@ -502,17 +502,18 @@
                 if (aStream) audioTracks = aStream.getAudioTracks();
             }
 
-            // Prioritas 2: Fallback pakai Web Audio API dest jika prioritas 1 gagal
+            // Prioritas 2: Fallback pakai Web Audio API
             if (audioTracks.length === 0 && audioSourceRef.current?.dest?.stream) {
                 audioTracks = audioSourceRef.current.dest.stream.getAudioTracks();
             }
 
+            // PERBAIKAN MIME TYPE: Prioritaskan MP4 yang paling kompatibel untuk WhatsApp & Windows
             const getBestMimeType = () => {
                 const types = [
-                    'video/webm;codecs=vp9,opus',
-                    'video/webm;codecs=vp8,opus',
-                    'video/webm',
-                    'video/mp4'
+                    'video/mp4;codecs=avc1,mp4a.40.2', // H.264 & AAC (Sangat kompatibel)
+                    'video/mp4', // Standar MP4
+                    'video/webm;codecs=h264', // H.264 di dalam WebM
+                    'video/webm' // Fallback terakhir (WhatsApp tetap bisa memprosesnya)
                 ];
                 for (const t of types) {
                     if (MediaRecorder.isTypeSupported(t)) return t;
@@ -520,7 +521,6 @@
                 return 'video/webm'; 
             };
 
-            // Canvas capture direndahkan ke 30fps agar tidak nge-lag dan audio tetap sinkron
             const canvasStream = canvasRef.current.captureStream(30); 
             const combinedStream = new MediaStream([
                 ...canvasStream.getVideoTracks(),
@@ -530,8 +530,8 @@
             const mimeType = getBestMimeType();
             const recorderOptions = { 
                 mimeType: mimeType,
-                videoBitsPerSecond: 8000000, // 8 Mbps sudah cukup tajam
-                audioBitsPerSecond: 128000   // Wajib ditentukan agar browser memproses suaranya
+                videoBitsPerSecond: 8000000, 
+                audioBitsPerSecond: 128000   
             };
             
             const recorder = new MediaRecorder(combinedStream, recorderOptions);
@@ -547,6 +547,7 @@
                 const a = document.createElement('a');
                 a.href = url;
                 
+                // Pastikan ekstensi sesuai
                 const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
                 a.download = `AiLabs_Video_${aspectRatio.replace('/', 'x')}.${ext}`;
                 
