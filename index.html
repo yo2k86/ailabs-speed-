@@ -491,22 +491,28 @@
             await audioRef.current.play();
             setIsPlayingAudio(true);
 
-            let audioStream = audioSourceRef.current?.dest?.stream;
+            let audioTracks = [];
             
-            if (!audioStream || audioStream.getAudioTracks().length === 0) {
-                if (typeof audioRef.current.captureStream === 'function') {
-                    audioStream = audioRef.current.captureStream();
-                } else if (typeof audioRef.current.mozCaptureStream === 'function') {
-                    audioStream = audioRef.current.mozCaptureStream();
-                }
+            // Prioritas 1: Ambil stream langsung dari elemen audio (paling stabil untuk di-download)
+            if (typeof audioRef.current.captureStream === 'function') {
+                const aStream = audioRef.current.captureStream();
+                if (aStream) audioTracks = aStream.getAudioTracks();
+            } else if (typeof audioRef.current.mozCaptureStream === 'function') {
+                const aStream = audioRef.current.mozCaptureStream();
+                if (aStream) audioTracks = aStream.getAudioTracks();
+            }
+
+            // Prioritas 2: Fallback pakai Web Audio API dest jika prioritas 1 gagal
+            if (audioTracks.length === 0 && audioSourceRef.current?.dest?.stream) {
+                audioTracks = audioSourceRef.current.dest.stream.getAudioTracks();
             }
 
             const getBestMimeType = () => {
                 const types = [
-                    'video/mp4',
-                    'video/webm; codecs=vp9',
-                    'video/webm; codecs=vp8',
-                    'video/webm'
+                    'video/webm;codecs=vp9,opus',
+                    'video/webm;codecs=vp8,opus',
+                    'video/webm',
+                    'video/mp4'
                 ];
                 for (const t of types) {
                     if (MediaRecorder.isTypeSupported(t)) return t;
@@ -514,16 +520,18 @@
                 return 'video/webm'; 
             };
 
-            const canvasStream = canvasRef.current.captureStream(60); 
+            // Canvas capture direndahkan ke 30fps agar tidak nge-lag dan audio tetap sinkron
+            const canvasStream = canvasRef.current.captureStream(30); 
             const combinedStream = new MediaStream([
                 ...canvasStream.getVideoTracks(),
-                ...audioStream.getAudioTracks()
+                ...audioTracks
             ]);
             
             const mimeType = getBestMimeType();
             const recorderOptions = { 
                 mimeType: mimeType,
-                videoBitsPerSecond: 20000000 
+                videoBitsPerSecond: 8000000, // 8 Mbps sudah cukup tajam
+                audioBitsPerSecond: 128000   // Wajib ditentukan agar browser memproses suaranya
             };
             
             const recorder = new MediaRecorder(combinedStream, recorderOptions);
@@ -804,7 +812,6 @@
             <audio 
                 ref={audioRef} 
                 src={audioUrl} 
-                crossOrigin="anonymous" 
                 onEnded={() => {
                     setIsPlayingAudio(false);
                     if (isRecordingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
