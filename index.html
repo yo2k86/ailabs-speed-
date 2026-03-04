@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AiLabs 4D Video Editor</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel CDN (Untuk menjalankan JSX di browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* Styling scrollbar tipis */
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #444; border-radius: 10px; }
+  </style>
+</head>
+<body class="bg-[#0a0a0a] text-white">
+  
+  <!-- Wadah utama React -->
+  <div id="root"></div>
+
+  <!-- Kode React Aplikasi -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- ICONS (Pengganti Lucide-React agar bisa jalan tanpa npm install) ---
+    const Play = ({ size=24, className="", fill="none" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>);
+    const ImageIcon = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>);
+    const Video = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m22 8-6 4 6 4V8Z"></path><rect width="14" height="12" x="2" y="6" rx="2" ry="2"></rect></svg>);
+    const Upload = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>);
+    const Music = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>);
+    const Loader2 = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>);
+    const Download = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>);
+    const Scissors = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="6" cy="6" r="3"></circle><path d="M8.12 8.12 12 12"></path><path d="M20 4 8.12 15.88"></path><circle cx="6" cy="18" r="3"></circle><path d="M14.8 14.8 20 20"></path></svg>);
+
+    // --- DATA PROMPTS & DEFAULT TIPE EFEK ---
+    const promptsData = {
+      tesseractWarp: {
+        title: "4D Tesseract Warp",
+        text: "Membengkokkan ruang dengan rotasi dan zoom seimbang.",
+        startTransform: 'scale(1.8) rotate(12deg) translate(-5%, -5%)',
+        endTransform: 'scale(1.2) rotate(-1deg) translate(2%, 2%)',
+      },
+      quantumLeapRight: {
+        title: "4D Quantum Leap Right",
+        text: "Lompatan dimensi ke kanan dengan tarikan medium.",
+        startTransform: 'scale(1.2) translate(-4%, 0) skewX(-3deg)',
+        endTransform: 'scale(1.6) translate(8%, 0) skewX(2deg)',
+      },
+      quantumLeapLeft: {
+        title: "4D Quantum Leap Left",
+        text: "Lompatan dimensi ke kiri dengan tarikan medium.",
+        startTransform: 'scale(1.6) translate(8%, 0) skewX(2deg)',
+        endTransform: 'scale(1.2) translate(-4%, 0) skewX(-3deg)',
+      },
+      dimensionDrift: {
+        title: "4D Dimension Drift",
+        text: "Mengambang melintasi ruang angkasa secara mulus.",
+        startTransform: 'scale(1.7) rotate(-8deg) translate(5%, 5%)',
+        endTransform: 'scale(1.25) rotate(2deg) translate(-3%, -3%)',
+      },
+      hyperVortex: {
+        title: "4D Hyper Vortex",
+        text: "Pusaran dimensi yang fokus pada subjek.",
+        startTransform: 'scale(2.0) rotate(15deg)',
+        endTransform: 'scale(1.15) rotate(0deg)',
+      },
+      timeSlipPush: {
+        title: "4D Time-Slip Push",
+        text: "Dorongan waktu dinamis ke depan.",
+        startTransform: 'scale(1.15) translateY(2%)',
+        endTransform: 'scale(1.7) translateY(-6%)',
+      },
+      timeSlipPull: {
+        title: "4D Time-Slip Pull",
+        text: "Tarik mundur dinamis.",
+        startTransform: 'scale(1.7) translateY(-6%)',
+        endTransform: 'scale(1.15) translateY(2%)',
+      },
+      gravityCrush: {
+        title: "4D Gravity Crush",
+        text: "Bantingan gravitasi fokus tengah.",
+        startTransform: 'scale(1.6) rotate(6deg) translate(0, -8%)',
+        endTransform: 'scale(1.2) rotate(-2deg) translate(0, 4%)',
+      }
+    };
+
+    const graphPresets = {
+      hyperWhip: [ 
+        { id: 1, x: 0.05, y: 0.05, hIn: null, hOut: { dx: 0.6, dy: 0 } },
+        { id: 2, x: 0.95, y: 0.95, hIn: { dx: -0.6, dy: 0 }, hOut: null }
+      ],
+      dimensionalImpact: [ 
+        { id: 1, x: 0.05, y: 0.85, hIn: null, hOut: { dx: 0.1, dy: 0.3 } },
+        { id: 2, x: 0.25, y: 0.98, hIn: { dx: -0.1, dy: -0.1 }, hOut: { dx: 0.4, dy: 0 } },
+        { id: 3, x: 0.95, y: 1.0, hIn: { dx: -0.3, dy: 0 }, hOut: null }
+      ],
+      timeWarp: [ 
+        { id: 1, x: 0.1, y: 0.1, hIn: null, hOut: { dx: 0.1, dy: 0.8 } },
+        { id: 2, x: 0.4, y: 0.1, hIn: { dx: -0.2, dy: -0.1 }, hOut: { dx: 0.3, dy: -0.1 } },
+        { id: 3, x: 0.9, y: 0.1, hIn: { dx: -0.1, dy: 0.9 }, hOut: null }
+      ]
+    };
+
+    function App() {
+      const [mediaFiles, setMediaFiles] = useState([]); 
+      const [audioFile, setAudioFile] = useState(null);
+      const [audioUrl, setAudioUrl] = useState(null);
+      const [beats, setBeats] = useState([]); 
+      const [isAnalyzing, setIsAnalyzing] = useState(false);
+      
+      const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+      const [aspectRatio, setAspectRatio] = useState('9/16'); 
+      
+      const [currentEffectKey, setCurrentEffectKey] = useState('tesseractWarp'); 
+      const currentEffectKeyRef = useRef('tesseractWarp');
+      
+      // --- REFERENSI AUDIO & EQ ---
+      const audioRef = useRef(null);
+      const audioSourceRef = useRef(null);
+      const analyserRef = useRef(null);
+      const dataArrayRef = useRef(null);
+      const canvasEqRef = useRef(null);
+      const eqAnimRef = useRef(null);
+      const currentVideoRef = useRef(null);
+      
+      // --- TAMBAHAN REF & STATE UNTUK DUAL TRIM ---
+      const timelineRef = useRef(null);
+      const [activeTrim, setActiveTrim] = useState(null);
+      
+      useEffect(() => {
+        currentEffectKeyRef.current = currentEffectKey;
+      }, [currentEffectKey]);
+
+      const getRandomEffect = (currentKey) => {
+        const keys = Object.keys(promptsData);
+        const available = keys.filter(k => k !== currentKey);
+        return available[Math.floor(Math.random() * available.length)];
+      };
+
+      const getRandomGraph = () => {
+        const keys = Object.keys(graphPresets);
+        const randomKey = keys[Math.floor(Math.random() * keys.length)];
+        return JSON.parse(JSON.stringify(graphPresets[randomKey]));
+      };
+      
+      const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+      const [isPreviewing, setIsPreviewing] = useState(false); 
+      
+      const [progress, setProgress] = useState(0); 
+      const [currentBeatDuration, setCurrentBeatDuration] = useState(2.0); 
+      const [triggerAnim, setTriggerAnim] = useState(false); 
+      
+      const animationRef = useRef(null);
+      const [points, setPoints] = useState(JSON.parse(JSON.stringify(graphPresets.hyperWhip)));
+      const svgRef = useRef(null);
+      const [activeDrag, setActiveDrag] = useState(null); 
+      const [selectedPoint, setSelectedPoint] = useState(null); 
+
+      const [isRecording, setIsRecording] = useState(false);
+      const isRecordingRef = useRef(false);
+      const canvasRef = useRef(null);
+      const mediaRecorderRef = useRef(null);
+      const recordedChunksRef = useRef([]);
+
+      const progressBarRef = useRef(null);
+      const progressTextRef = useRef(null);
+
+      const canvasRenderWidth = aspectRatio === '9/16' ? 1080 : aspectRatio === '16/9' ? 1920 : 1080;
+      const canvasRenderHeight = aspectRatio === '9/16' ? 1920 : aspectRatio === '16/9' ? 1080 : 1080;
+
+      const initAudioSystem = async () => {
+        if (!audioRef.current) return;
+        
+        if (!audioSourceRef.current) {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                const audioCtx = new AudioContext();
+                
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 128; 
+                analyser.smoothingTimeConstant = 0.85; 
+                
+                const source = audioCtx.createMediaElementSource(audioRef.current);
+                const dest = audioCtx.createMediaStreamDestination();
+                
+                source.connect(analyser);
+                analyser.connect(dest);
+                analyser.connect(audioCtx.destination); 
+                
+                audioSourceRef.current = { ctx: audioCtx, dest: dest, source: source };
+                analyserRef.current = analyser;
+                dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+            } catch (err) {
+                console.error("Gagal inisialisasi AudioContext:", err);
+            }
+        }
+        
+        if (audioSourceRef.current?.ctx.state === 'suspended') {
+            await audioSourceRef.current.ctx.resume();
+        }
+      };
+
+      const handleMediaUpload = (e) => {
+        const files = Array.from(e.target.files).slice(0, 20); 
+        if (files.length > 0) {
+          const newMedia = files.map(file => ({
+            url: URL.createObjectURL(file),
+            type: file.type.startsWith('video/') ? 'video' : 'image',
+            startTime: 0, 
+            endTime: null, 
+            duration: 0   
+          }));
+          setMediaFiles(prev => [...prev, ...newMedia].slice(0, 20)); 
+          setCurrentMediaIndex(0);
+          setIsPlayingAudio(false);
+          setIsPreviewing(false);
+        }
+      };
+
+      const handleAudioUpload = async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          setAudioFile(file);
+          setAudioUrl(URL.createObjectURL(file));
+          analyzeAudio(file);
+        }
+      };
+
+      const analyzeAudio = async (file) => {
+        setIsAnalyzing(true);
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          
+          const channelData = audioBuffer.getChannelData(0);
+          const sampleRate = audioBuffer.sampleRate;
+          
+          const peaks = [];
+          const windowSize = Math.floor(sampleRate * 0.1); 
+          let maxGlobal = 0;
+
+          for (let i = 0; i < channelData.length; i += windowSize) {
+            let maxLocal = 0;
+            for (let j = 0; j < windowSize && i + j < channelData.length; j++) {
+              maxLocal = Math.max(maxLocal, Math.abs(channelData[i + j]));
+            }
+            maxGlobal = Math.max(maxGlobal, maxLocal);
+          }
+
+          const threshold = maxGlobal * 0.75; 
+          const minBeatInterval = 0.7; 
+          let lastBeatTime = 0;
+
+          for (let i = 0; i < channelData.length; i += windowSize) {
+            let maxLocal = 0;
+            for (let j = 0; j < windowSize && i + j < channelData.length; j++) {
+              maxLocal = Math.max(maxLocal, Math.abs(channelData[i + j]));
+            }
+            
+            const currentTime = i / sampleRate;
+            if (maxLocal > threshold && (currentTime - lastBeatTime > minBeatInterval)) {
+              peaks.push(currentTime);
+              lastBeatTime = currentTime;
+            }
+          }
+          
+          if (peaks.length === 0 || peaks[0] > 0.2) peaks.unshift(0);
+          setBeats(peaks);
+        } catch (error) {
+          console.error("Gagal menganalisis audio", error);
+        }
+        setIsAnalyzing(false);
+      };
+
+      useEffect(() => {
+        if (!isPlayingAudio) {
+            if (eqAnimRef.current) cancelAnimationFrame(eqAnimRef.current);
+            if (canvasEqRef.current) {
+                 const canvas = canvasEqRef.current;
+                 const ctx = canvas.getContext('2d');
+                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                 ctx.fillStyle = '#333';
+                 ctx.fillRect(0, canvas.height - 2, canvas.width, 2);
+            }
+            return;
+        }
+
+        const drawEq = () => {
+            if (analyserRef.current && dataArrayRef.current && canvasEqRef.current) {
+                const canvas = canvasEqRef.current;
+                const ctx = canvas.getContext('2d');
+                const analyser = analyserRef.current;
+                const dataArray = dataArrayRef.current;
+                
+                analyser.getByteFrequencyData(dataArray);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const padding = 4;
+                const barsToDraw = Math.min(48, dataArray.length); 
+                const barWidth = (canvas.width / barsToDraw) - padding;
+                let x = padding / 2;
+                
+                for (let i = 0; i < barsToDraw; i++) {
+                    const rawHeight = (dataArray[i] / 255) * canvas.height;
+                    const barHeight = Math.max(2, rawHeight);
+                    
+                    const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                    gradient.addColorStop(0, '#c084fc');   
+                    gradient.addColorStop(0.5, '#ec4899'); 
+                    gradient.addColorStop(1, '#fcd34d');   
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(x, canvas.height - barHeight - 3, barWidth, 3);
+                    
+                    x += barWidth + padding;
+                }
+            }
+            eqAnimRef.current = requestAnimationFrame(drawEq);
+        };
+        
+        drawEq(); 
+        
+        return () => {
+            if (eqAnimRef.current) cancelAnimationFrame(eqAnimRef.current);
+        };
+      }, [isPlayingAudio]);
+
+      useEffect(() => {
+        let animationFrame;
+        let startTime;
+        const animate = (timestamp) => {
+          if (!startTime) startTime = timestamp;
+          const elapsed = (timestamp - startTime) / 1000; 
+          if (elapsed < 2.0) {
+            setProgress((elapsed / 2.0) * 100);
+            animationFrame = requestAnimationFrame(animate);
+          } else {
+            setProgress(100);
+            setIsPreviewing(false); 
+          }
+        };
+        
+        if (isPreviewing) {
+          animationFrame = requestAnimationFrame(animate);
+        }
+        return () => cancelAnimationFrame(animationFrame);
+      }, [isPreviewing]);
+
+      useEffect(() => {
+        if (!isPlayingAudio || !audioRef.current || beats.length === 0 || mediaFiles.length === 0) return;
+        let currentBeatIdx = 0;
+
+        const loop = () => {
+          const currentTime = audioRef.current.currentTime;
+          const currentBeatTime = beats[currentBeatIdx];
+          const nextBeatTime = currentBeatIdx < beats.length - 1 ? beats[currentBeatIdx + 1] : audioRef.current.duration;
+          const duration = nextBeatTime - currentBeatTime;
+          
+          if (currentTime >= nextBeatTime && currentBeatIdx < beats.length - 1) {
+             currentBeatIdx++;
+             setCurrentMediaIndex(currentBeatIdx % mediaFiles.length); 
+             
+             setCurrentEffectKey(getRandomEffect(currentEffectKeyRef.current));
+             setPoints(getRandomGraph());
+             
+             const newDuration = (currentBeatIdx < beats.length - 1 ? beats[currentBeatIdx + 1] : audioRef.current.duration) - beats[currentBeatIdx];
+             setCurrentBeatDuration(Math.max(0.3, newDuration)); 
+
+             setTriggerAnim(false);
+             setTimeout(() => setTriggerAnim(true), 20);
+          }
+
+          if (duration > 0) {
+            const pct = ((currentTime - currentBeatTime) / duration) * 100;
+            setProgress(Math.max(0, Math.min(100, pct)));
+          }
+
+          if (!audioRef.current.ended) {
+            animationRef.current = requestAnimationFrame(loop);
+          } else {
+            setIsPlayingAudio(false);
+          }
+        };
+
+        animationRef.current = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(animationRef.current);
+      }, [isPlayingAudio, beats, mediaFiles.length]);
+
+      const handlePreviewSingle = () => {
+        if (mediaFiles.length === 0) return;
+        if (isPlayingAudio) {
+          setIsPlayingAudio(false);
+          if (audioRef.current) audioRef.current.pause();
+        }
+        
+        if (currentVideoRef.current && currentMedia?.type === 'video') {
+            currentVideoRef.current.currentTime = currentMedia.startTime || 0;
+        }
+
+        setIsPreviewing(false);
+        setProgress(0);
+        setTriggerAnim(false);
+        setCurrentEffectKey(getRandomEffect(currentEffectKey));
+        setPoints(getRandomGraph());
+        setTimeout(() => {
+          setIsPreviewing(true);
+          setTriggerAnim(true);
+        }, 50);
+      };
+
+      const handlePlaySequence = async (forceRestart = false) => {
+        if (!audioUrl || mediaFiles.length === 0) {
+            alert("Upload minimal 1 media (foto/video) dan musik terlebih dahulu untuk sequence!");
+            return;
+        }
+        
+        if (isPreviewing) setIsPreviewing(false);
+
+        if (forceRestart === true) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            setCurrentMediaIndex(0);
+            if (beats.length > 1) {
+                setCurrentBeatDuration(beats[1] - beats[0]);
+            } else {
+                setCurrentBeatDuration(2.0);
+            }
+            
+            await initAudioSystem(); 
+            audioRef.current.play();
+            setIsPlayingAudio(true);
+            setTriggerAnim(false);
+            setTimeout(() => setTriggerAnim(true), 50);
+            return;
+        }
+
+        if (isPlayingAudio) {
+          audioRef.current.pause();
+          setIsPlayingAudio(false);
+        } else {
+          setTriggerAnim(false);
+          if (audioRef.current.ended) {
+              audioRef.current.currentTime = 0;
+              setCurrentMediaIndex(0);
+          }
+          if (beats.length > 1) {
+              setCurrentBeatDuration(beats[1] - beats[0]);
+          } else {
+              setCurrentBeatDuration(2.0);
+          }
+          
+          await initAudioSystem(); 
+          audioRef.current.play();
+          setIsPlayingAudio(true);
+          setTimeout(() => setTriggerAnim(true), 50);
+        }
+      };
+
+      const handleDownloadVideo = async () => {
+        if (!audioUrl || mediaFiles.length === 0) {
+            alert("Upload media & musik terlebih dahulu untuk direkam.");
+            return;
+        }
+        
+        setIsRecording(true);
+        isRecordingRef.current = true;
+        
+        audioRef.current.currentTime = 0;
+        setCurrentMediaIndex(0);
+        if (beats.length > 1) {
+            setCurrentBeatDuration(beats[1] - beats[0]);
+        } else {
+            setCurrentBeatDuration(2.0);
+        }
+
+        try {
+            await initAudioSystem(); 
+            await audioRef.current.play();
+            setIsPlayingAudio(true);
+
+            let audioStream = audioSourceRef.current?.dest?.stream;
+            
+            if (!audioStream || audioStream.getAudioTracks().length === 0) {
+                if (typeof audioRef.current.captureStream === 'function') {
+                    audioStream = audioRef.current.captureStream();
+                } else if (typeof audioRef.current.mozCaptureStream === 'function') {
+                    audioStream = audioRef.current.mozCaptureStream();
+                }
+            }
+
+            const getBestMimeType = () => {
+                const types = [
+                    'video/mp4',
+                    'video/webm; codecs=vp9',
+                    'video/webm; codecs=vp8',
+                    'video/webm'
+                ];
+                for (const t of types) {
+                    if (MediaRecorder.isTypeSupported(t)) return t;
+                }
+                return 'video/webm'; 
+            };
+
+            const canvasStream = canvasRef.current.captureStream(60); 
+            const combinedStream = new MediaStream([
+                ...canvasStream.getVideoTracks(),
+                ...audioStream.getAudioTracks()
+            ]);
+            
+            const mimeType = getBestMimeType();
+            const recorderOptions = { 
+                mimeType: mimeType,
+                videoBitsPerSecond: 20000000 
+            };
+            
+            const recorder = new MediaRecorder(combinedStream, recorderOptions);
+            recordedChunksRef.current = [];
+            
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+            };
+            
+            recorder.onstop = () => {
+                const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                a.download = `AiLabs_Video_${aspectRatio.replace('/', 'x')}.${ext}`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                setIsRecording(false);
+                isRecordingRef.current = false;
+            };
+            
+            mediaRecorderRef.current = recorder;
+            recorder.start();
+            
+            setTriggerAnim(false);
+            setTimeout(() => setTriggerAnim(true), 50);
+            
+            let cachedNode = null;
+            let c_domW = 1, c_domH = 1, c_imgW = 1, c_imgH = 1;
+            let c_scaleX = 1, c_scaleY = 1, c_drawW = 1, c_drawH = 1;
+
+            const drawFrame = () => {
+                if (!isRecordingRef.current) return;
+
+                if (audioRef.current && progressBarRef.current && progressTextRef.current) {
+                    const pct = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+                    progressBarRef.current.style.width = `${pct}%`;
+                    progressTextRef.current.innerText = `${Math.round(pct)}%`;
+                }
+                
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d', { alpha: false }); 
+                const mediaEl = document.getElementById('current-media-element');
+                
+                if (mediaEl) {
+                    if (cachedNode !== mediaEl || c_imgW <= 1) {
+                        cachedNode = mediaEl;
+                        c_domW = mediaEl.offsetWidth || 1;
+                        c_domH = mediaEl.offsetHeight || 1;
+                        c_imgW = mediaEl.videoWidth || mediaEl.naturalWidth || 1;
+                        c_imgH = mediaEl.videoHeight || mediaEl.naturalHeight || 1;
+                        
+                        c_scaleX = canvas.width / c_domW;
+                        c_scaleY = canvas.height / c_domH;
+                        
+                        if (c_imgW > 1 && c_imgH > 1) {
+                            const coverScale = Math.max(canvas.width / c_imgW, canvas.height / c_imgH);
+                            const safeScale = coverScale * 1.30; 
+                            c_drawW = c_imgW * safeScale;
+                            c_drawH = c_imgH * safeScale;
+                        }
+                    }
+
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    const compStyle = window.getComputedStyle(mediaEl);
+                    const transformStr = compStyle.transform;
+                    
+                    ctx.save();
+                    ctx.translate(canvas.width / 2, canvas.height / 2);
+
+                    if (transformStr && transformStr !== 'none') {
+                        try {
+                            const matrix = new DOMMatrix(transformStr);
+                            ctx.transform(
+                                matrix.a, matrix.b,
+                                matrix.c, matrix.d,
+                                matrix.e * c_scaleX, matrix.f * c_scaleY
+                            );
+                        } catch(e) {
+                            console.error("Gagal parsing Matrix:", e);
+                        }
+                    }
+                    
+                    if (c_imgW > 1 && c_imgH > 1) {
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(mediaEl, -c_drawW / 2, -c_drawH / 2, c_drawW, c_drawH);
+                    }
+                    
+                    ctx.restore();
+                }
+                requestAnimationFrame(drawFrame);
+            };
+            
+            requestAnimationFrame(drawFrame);
+
+        } catch (err) {
+            console.error("Gagal merekam video", err);
+            alert("Gagal memulai rekaman. Pastikan browser mendukung capture audio & video.");
+            setIsRecording(false);
+            isRecordingRef.current = false;
+        }
+      };
+
+      const removeMedia = (idx) => {
+          setMediaFiles(prev => prev.filter((_, i) => i !== idx));
+      };
+
+      const handleTrimPointerDown = (e, type) => {
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setActiveTrim(type); 
+      };
+
+      const handleTrimPointerMove = (e) => {
+        if (!activeTrim || !timelineRef.current || !currentMedia) return;
+        const rect = timelineRef.current.getBoundingClientRect();
+        let x = (e.clientX - rect.left) / rect.width;
+        x = Math.max(0, Math.min(1, x)); 
+        const newTime = x * currentMedia.duration;
+
+        setMediaFiles(prev => {
+            const arr = [...prev];
+            const media = arr[safeMediaIndex];
+            if (activeTrim === 'start') {
+                media.startTime = Math.min(newTime, (media.endTime || media.duration) - 0.5);
+            } else if (activeTrim === 'end') {
+                media.endTime = Math.max(newTime, (media.startTime || 0) + 0.5);
+            }
+            return arr;
+        });
+
+        if (currentVideoRef.current) {
+            currentVideoRef.current.currentTime = newTime;
+        }
+      };
+
+      const handleTrimPointerUp = () => {
+        setActiveTrim(null);
+      };
+
+      useEffect(() => {
+        const handlePointerMove = (e) => {
+          if (!activeDrag || !svgRef.current) return;
+          const rect = svgRef.current.getBoundingClientRect();
+          let x = (e.clientX - rect.left) / rect.width;
+          let y = 1 - ((e.clientY - rect.top) / rect.height);
+          
+          y = Math.max(-0.5, Math.min(1.5, y));
+
+          setPoints(prev => {
+            const newPts = JSON.parse(JSON.stringify(prev));
+            const pt = newPts[activeDrag.index];
+
+            if (activeDrag.type === 'point') {
+              let newX = x;
+              if (activeDrag.index === 0) newX = Math.max(0, Math.min(0.2, newX)); 
+              else if (activeDrag.index === newPts.length - 1) newX = Math.max(0.8, Math.min(1, newX)); 
+              else {
+                const prevX = newPts[activeDrag.index - 1].x;
+                const nextX = newPts[activeDrag.index + 1].x;
+                newX = Math.max(prevX + 0.01, Math.min(nextX - 0.01, newX));
+              }
+              pt.x = newX;
+              pt.y = y;
+            } 
+            else if (activeDrag.type === 'hIn') {
+              pt.hIn.dx = x - pt.x;
+              pt.hIn.dy = y - pt.y;
+            } 
+            else if (activeDrag.type === 'hOut') {
+              pt.hOut.dx = x - pt.x;
+              pt.hOut.dy = y - pt.y;
+            }
+            return newPts;
+          });
+        };
+        
+        const handlePointerUp = () => setActiveDrag(null);
+        if (activeDrag !== null) {
+          window.addEventListener('pointermove', handlePointerMove);
+          window.addEventListener('pointerup', handlePointerUp);
+        }
+        return () => {
+          window.removeEventListener('pointermove', handlePointerMove);
+          window.removeEventListener('pointerup', handlePointerUp);
+        };
+      }, [activeDrag]);
+
+      const getTimingFunctionString = () => {
+        const beziers = [];
+        for (let i = 0; i < points.length - 1; i++) {
+            beziers.push({
+                p1: points[i],
+                p2: points[i + 1],
+                cp1: { x: points[i].x + (points[i].hOut?.dx || 0), y: points[i].y + (points[i].hOut?.dy || 0) },
+                cp2: { x: points[i + 1].x + (points[i + 1].hIn?.dx || 0), y: points[i + 1].y + (points[i + 1].hIn?.dy || 0) }
+            });
+        }
+
+        const rawSamples = [];
+        beziers.forEach((b) => {
+          for(let j=0; j <= 50; j++) {
+              const t = j/50;
+              const mt = 1-t;
+              const getVal = (prop) => Math.pow(mt, 3) * b.p1[prop] + 3 * Math.pow(mt, 2) * t * b.cp1[prop] + 3 * mt * Math.pow(t, 2) * b.cp2[prop] + Math.pow(t, 3) * b.p2[prop];
+              rawSamples.push({ x: getVal('x'), y: getVal('y') });
+          }
+        });
+        
+        rawSamples.sort((a,b) => a.x - b.x);
+
+        const finalSamples = [];
+        for(let pct = 0; pct <= 100; pct += 2) { 
+            const targetX = pct / 100;
+            let closest = rawSamples[0];
+            let minDiff = Infinity;
+            for (const s of rawSamples) {
+                const diff = Math.abs(s.x - targetX);
+                if (diff < minDiff) { minDiff = diff; closest = s; }
+            }
+            finalSamples.push(`${closest.y.toFixed(3)} ${pct}%`);
+        }
+        return `linear(${finalSamples.join(', ')})`;
+      };
+
+      const timingFunctionString = getTimingFunctionString();
+      
+      let svgPathD = '';
+      if (points.length > 0) {
+        svgPathD = `M ${points[0].x * 100},${100 - points[0].y * 100} `;
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i+1];
+          const cp1x = p1.x + (p1.hOut?.dx || 0);
+          const cp1y = p1.y + (p1.hOut?.dy || 0);
+          const cp2x = p2.x + (p2.hIn?.dx || 0);
+          const cp2y = p2.y + (p2.hIn?.dy || 0);
+          svgPathD += `C ${cp1x * 100},${100 - cp1y * 100} ${cp2x * 100},${100 - cp2y * 100} ${p2.x * 100},${100 - p2.y * 100} `;
+        }
+      }
+
+      const safeMediaIndex = Math.max(0, Math.min(currentMediaIndex, Math.max(0, mediaFiles.length - 1)));
+      const currentEffect = promptsData[currentEffectKey] || promptsData['tesseractWarp'];
+      const activeDuration = isPreviewing ? 2.0 : currentBeatDuration;
+      const currentMedia = mediaFiles.length > 0 ? mediaFiles[safeMediaIndex] : null;
+
+      return (
+        <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex flex-col items-center py-8 px-4 relative">
+          
+          {isRecording && (
+            <div className="fixed inset-0 z-[100] bg-[#050505]/95 flex flex-col items-center justify-center p-6 backdrop-blur-xl">
+               <div className="w-32 h-32 mb-8 relative flex items-center justify-center">
+                  <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
+                  <span ref={progressTextRef} className="font-bold text-2xl text-white">0%</span>
+               </div>
+               <h2 className="text-3xl font-black tracking-widest text-white mb-3 text-center">RENDERING VIDEO...</h2>
+               <p className="text-slate-400 text-sm mb-10 text-center max-w-md leading-relaxed">
+                  Mesin sedang memproses dimensi 4D dan menyimpan rekaman ke dalam video. <br/>
+                  <span className="text-red-400 font-bold block mt-2">PENTING: JANGAN TUTUP ATAU PINDAH TAB INI</span>
+               </p>
+               <div className="w-full max-w-lg h-4 bg-[#222] rounded-full overflow-hidden shadow-inner relative">
+                  <div ref={progressBarRef} className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-600 to-pink-500 w-0 transition-none"></div>
+               </div>
+            </div>
+          )}
+
+          {audioUrl && (
+            <audio 
+                ref={audioRef} 
+                src={audioUrl} 
+                crossOrigin="anonymous" 
+                onEnded={() => {
+                    setIsPlayingAudio(false);
+                    if (isRecordingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                        mediaRecorderRef.current.stop();
+                    }
+                }} 
+            />
+          )}
+
+          <canvas 
+            ref={canvasRef} 
+            width={canvasRenderWidth} 
+            height={canvasRenderHeight} 
+            style={{ 
+              width: `${canvasRenderWidth}px`, 
+              height: `${canvasRenderHeight}px`,
+              position: 'fixed', 
+              top: '-20000px', 
+              left: '-20000px', 
+              opacity: 0.01, 
+              pointerEvents: 'none',
+              zIndex: -9999
+            }} 
+          />
+
+          <div className="w-full max-w-5xl flex justify-between items-center mb-6">
+            <h1 className="text-xl font-bold flex items-center gap-2">
+              <span>AiLabs Editor & Graph🍌</span>
+            </h1>
+            <div className="flex items-center gap-2 bg-[#1a1a1a] px-3 py-1.5 rounded-lg border border-[#333] shadow-inner">
+               <Video size={16} className="text-green-500 animate-pulse" />
+               <span className="text-xs font-bold text-green-500 tracking-wider">FULL AUTO-SYNC ON</span>
+            </div>
+          </div>
+
+          <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            
+            <div className="flex flex-col gap-4">
+
+              <div className="flex justify-center gap-2 bg-[#121212] p-1.5 rounded-lg border border-[#333] w-fit mx-auto shadow-lg">
+                 <button onClick={() => setAspectRatio('9/16')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '9/16' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>9:16</button>
+                 <button onClick={() => setAspectRatio('16/9')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '16/9' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>16:9</button>
+                 <button onClick={() => setAspectRatio('1/1')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '1/1' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>1:1</button>
+              </div>
+
+              <div 
+                 className="bg-[#121212] border border-[#333] rounded-xl overflow-hidden flex flex-col relative shadow-2xl mx-auto w-full group"
+                 style={{
+                    aspectRatio: aspectRatio === '9/16' ? '9/16' : aspectRatio === '16/9' ? '16/9' : '1/1',
+                    maxWidth: aspectRatio === '9/16' ? '360px' : aspectRatio === '16/9' ? '720px' : '450px'
+                 }}
+              >
+                {mediaFiles.length === 0 ? (
+                   <div className="flex-1 flex flex-col items-center justify-center text-slate-500 h-full min-h-[400px]">
+                     <ImageIcon size={48} className="mb-4 opacity-50" />
+                     <p className="text-sm font-medium">Belum ada media yang diunggah</p>
+                     <p className="text-xs mt-2 text-slate-600">Unggah foto/video di panel bawah</p>
+                   </div>
+                ) : (
+                  <>
+                    <div className="flex-1 relative overflow-hidden bg-black h-full">
+                      {currentMedia?.type === 'video' ? (
+                        <video 
+                          ref={currentVideoRef}
+                          id="current-media-element"
+                          key={`vid-${safeMediaIndex}`}
+                          src={currentMedia?.url} 
+                          autoPlay muted playsInline
+                          onLoadedMetadata={(e) => {
+                              const duration = e.target.duration;
+                              setMediaFiles(prev => {
+                                  const newFiles = [...prev];
+                                  const current = newFiles[safeMediaIndex];
+                                  if (current) {
+                                      current.duration = duration;
+                                      if (current.endTime === null || current.endTime === undefined) {
+                                          current.endTime = duration;
+                                      }
+                                  }
+                                  return newFiles;
+                              });
+                              e.target.currentTime = currentMedia?.startTime || 0;
+                          }}
+                          onTimeUpdate={(e) => {
+                              const end = currentMedia?.endTime || currentMedia?.duration || e.target.duration;
+                              if (e.target.currentTime >= end - 0.1) {
+                                  e.target.currentTime = currentMedia?.startTime || 0;
+                                  e.target.play();
+                              }
+                          }}
+                          className="absolute inset-0 w-full h-full object-cover will-change-transform"
+                          style={{
+                            transformOrigin: 'center center',
+                            transitionProperty: 'transform',
+                            transitionDuration: triggerAnim ? `${activeDuration}s` : '0s',
+                            transitionTimingFunction: triggerAnim ? timingFunctionString : 'linear',
+                            transform: triggerAnim ? currentEffect.endTransform : currentEffect.startTransform,
+                          }}
+                        />
+                      ) : (
+                        <img 
+                          id="current-media-element"
+                          key={`img-${safeMediaIndex}`}
+                          src={currentMedia?.url} 
+                          className="absolute inset-0 w-full h-full object-cover will-change-transform"
+                          style={{
+                            transformOrigin: 'center center',
+                            transitionProperty: 'transform',
+                            transitionDuration: triggerAnim ? `${activeDuration}s` : '0s',
+                            transitionTimingFunction: triggerAnim ? timingFunctionString : 'linear',
+                            transform: triggerAnim ? currentEffect.endTransform : currentEffect.startTransform,
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+                       <span className="bg-black/50 backdrop-blur-md px-3 py-1 rounded text-xs font-bold border border-white/10 shadow-lg">
+                         {safeMediaIndex + 1} / {mediaFiles.length} ({currentMedia?.type})
+                       </span>
+                       {isPlayingAudio && (
+                         <span className="bg-green-500/20 text-green-400 backdrop-blur-md px-3 py-1 rounded text-xs font-bold border border-green-500/50 flex items-center gap-1 shadow-lg">
+                           <Music size={12} className="mr-1"/> Audio Synced
+                         </span>
+                       )}
+                    </div>
+
+                    {currentMedia?.type === 'video' && currentMedia?.duration > 0 && !isRecording && (
+                        <div className="absolute bottom-24 left-4 right-4 bg-black/80 border border-white/20 p-3 rounded-xl z-20 backdrop-blur-md flex flex-col gap-2 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                               <span className="flex items-center gap-1.5"><Scissors size={12} className="text-pink-500" /> Potong Start Video</span>
+                               <span className="text-pink-400 bg-pink-500/20 px-2 py-0.5 rounded border border-pink-500/30">
+                                  {Number(currentMedia.startTime || 0).toFixed(1)}s / {Number(currentMedia.duration).toFixed(1)}s
+                               </span>
+                            </div>
+                            <input 
+                               type="range" 
+                               min="0" 
+                               max={Math.max(0, currentMedia.duration - 0.1)} 
+                               step="0.1" 
+                               value={currentMedia.startTime || 0} 
+                               onChange={(e) => {
+                                   const time = parseFloat(e.target.value);
+                                   setMediaFiles(prev => {
+                                       const arr = [...prev];
+                                       arr[safeMediaIndex].startTime = time;
+                                       return arr;
+                                   });
+                                   if (currentVideoRef.current) {
+                                       currentVideoRef.current.currentTime = time;
+                                   }
+                               }}
+                               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                            />
+                        </div>
+                    )}
+
+                    <button 
+                      onClick={handlePreviewSingle}
+                      disabled={isRecording}
+                      className={`absolute bottom-6 right-6 w-14 h-14 bg-white/90 text-black rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-transform z-10 ${isRecording ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                      title="Preview gerak di 1 file ini saja"
+                    >
+                      {isPreviewing ? (
+                        <div className="w-5 h-5 bg-black rounded-sm"></div>
+                      ) : (
+                        <Play size={24} fill="currentColor" className="ml-1" />
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+              
+              {currentMedia?.type === 'video' && currentMedia?.duration > 0 && !isRecording && (
+                  <div 
+                     className="bg-[#151515] border border-[#333] rounded-xl p-3 shadow-lg mx-auto w-full flex flex-col gap-2"
+                     style={{ maxWidth: aspectRatio === '9/16' ? '360px' : aspectRatio === '16/9' ? '720px' : '450px' }}
+                  >
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider px-1">
+                         <span className="flex items-center gap-1.5"><Scissors size={14} className="text-pink-500" /> Potong Klip (Start - End)</span>
+                         <span className="text-pink-400 font-mono bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">
+                            {Number(currentMedia.startTime || 0).toFixed(1)}s - {Number(currentMedia.endTime || currentMedia.duration).toFixed(1)}s
+                         </span>
+                      </div>
+                      
+                      <div 
+                          className="relative w-full h-10 bg-black rounded-lg border border-[#444] flex items-center overflow-hidden group touch-none"
+                          ref={timelineRef}
+                          onPointerMove={handleTrimPointerMove}
+                          onPointerUp={handleTrimPointerUp}
+                          onPointerLeave={handleTrimPointerUp}
+                      >
+                           <div className="absolute inset-0 opacity-20 pointer-events-none flex flex-col justify-between py-0.5">
+                              <div className="w-full h-1.5 bg-[repeating-linear-gradient(90deg,transparent,transparent_6px,white_6px,white_8px)]"></div>
+                              <div className="w-full h-1.5 bg-[repeating-linear-gradient(90deg,transparent,transparent_6px,white_6px,white_8px)]"></div>
+                           </div>
+                           
+                           <div 
+                              className="absolute top-0 bottom-0 left-0 bg-black/70 backdrop-blur-sm pointer-events-none border-r border-[#444] z-10"
+                              style={{ width: `${((currentMedia.startTime || 0) / currentMedia.duration) * 100}%` }}
+                           ></div>
+
+                           <div 
+                              className="absolute top-0 bottom-0 right-0 bg-black/70 backdrop-blur-sm pointer-events-none border-l border-[#444] z-10"
+                              style={{ width: `${(1 - ((currentMedia.endTime || currentMedia.duration) / currentMedia.duration)) * 100}%` }}
+                           ></div>
+                           
+                           <div 
+                              className="absolute top-0 bottom-0 bg-pink-500/20 pointer-events-none border-y border-pink-500/50"
+                              style={{
+                                  left: `${((currentMedia.startTime || 0) / currentMedia.duration) * 100}%`,
+                                  right: `${(1 - ((currentMedia.endTime || currentMedia.duration) / currentMedia.duration)) * 100}%`
+                              }}
+                           ></div>
+                           
+                           <div 
+                              className="absolute top-0 bottom-0 w-4 bg-pink-500 shadow-[0_0_12px_#ec4899] z-20 flex items-center justify-center cursor-ew-resize hover:bg-pink-400 transition-colors rounded-l-md"
+                              style={{ 
+                                  left: `${((currentMedia.startTime || 0) / currentMedia.duration) * 100}%`,
+                                  transform: 'translateX(-100%)' 
+                              }}
+                              onPointerDown={(e) => handleTrimPointerDown(e, 'start')}
+                           >
+                               <div className="w-1 h-4 bg-white/80 rounded-sm pointer-events-none"></div>
+                           </div>
+
+                           <div 
+                              className="absolute top-0 bottom-0 w-4 bg-pink-500 shadow-[0_0_12px_#ec4899] z-20 flex items-center justify-center cursor-ew-resize hover:bg-pink-400 transition-colors rounded-r-md"
+                              style={{ 
+                                  left: `${((currentMedia.endTime || currentMedia.duration) / currentMedia.duration) * 100}%` 
+                              }}
+                              onPointerDown={(e) => handleTrimPointerDown(e, 'end')}
+                           >
+                               <div className="w-1 h-4 bg-white/80 rounded-sm pointer-events-none"></div>
+                           </div>
+                      </div>
+                  </div>
+              )}
+
+              {mediaFiles.length > 0 && audioUrl && (
+                 <button 
+                    onClick={handleDownloadVideo}
+                    disabled={isRecording}
+                    className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${
+                      isRecording 
+                        ? 'bg-slate-700 cursor-not-allowed text-white shadow-none' 
+                        : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-pink-500/25 border border-pink-400/30'
+                    }`}
+                 >
+                    {isRecording ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
+                    {isRecording ? 'MENYIAPKAN RENDER...' : 'RENDER & EXPORT 4D VIDEO'}
+                 </button>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-center items-center gap-2 text-2xl font-bold tracking-widest text-slate-300 relative mt-2">
+                <div className="absolute top-1/2 w-full h-px bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>
+                AE <span className="bg-[#1a0033] text-[#d499ff] px-2 py-1 rounded-lg border-2 border-[#d499ff] text-xl font-black z-10 relative">Ae</span>
+              </div>
+
+              <div className="bg-transparent text-center flex flex-col justify-center">
+                 <p className="text-[10px] text-purple-400 font-bold mb-1 tracking-widest">🌌 4D HYPER-SPATIAL 🌌</p>
+                 <p className="text-[13px] leading-snug text-slate-400 font-medium">
+                   [{currentEffect?.title}]
+                 </p>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2 px-1">
+                   <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                     Speed Graph <span className="bg-purple-600/30 text-purple-400 px-2 py-0.5 rounded-full text-[9px] border border-purple-500/30">Auto-Changing</span>
+                   </span>
+                </div>
+
+                <div className="bg-[#1e1e1e] border border-[#333] rounded-lg p-4 shadow-inner relative h-56 group">
+                  <div className="absolute inset-4 grid grid-cols-6 grid-rows-4 opacity-30 pointer-events-none border border-slate-600">
+                    {[...Array(24)].map((_, i) => <div key={i} className="border-r border-b border-slate-600/50"></div>)}
+                  </div>
+
+                  <div 
+                    className={`absolute top-4 bottom-4 w-0.5 z-10 pointer-events-none ${isPreviewing ? 'bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]' : 'bg-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.8)]'}`}
+                    style={{ left: `calc(1rem + ${progress}% - 0.5rem)` }} 
+                  />
+
+                  <svg ref={svgRef} viewBox="0 -20 100 140" className="w-full h-full overflow-visible touch-none" style={{ cursor: activeDrag !== null ? 'grabbing' : 'crosshair' }} onPointerDown={() => setSelectedPoint(null)}>
+                    <line x1="0" y1="100" x2="100" y2="100" stroke="#444" strokeWidth="1" strokeDasharray="4,4" />
+                    <line x1="0" y1="0" x2="100" y2="0" stroke="#444" strokeWidth="1" strokeDasharray="4,4" />
+                    <path d={svgPathD} fill="none" stroke="#fff" strokeWidth="2.5" strokeLinejoin="round" />
+                    
+                    {points.map((p, i) => {
+                      const px = p.x * 100;
+                      const py = 100 - p.y * 100;
+                      const isSelected = selectedPoint === i;
+
+                      return (
+                        <g key={p.id}>
+                          {isSelected && p.hIn && (
+                            <g>
+                              <line x1={px} y1={py} x2={px + p.hIn.dx * 100} y2={py - p.hIn.dy * 100} stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2,2" />
+                              <circle cx={px + p.hIn.dx * 100} cy={py - p.hIn.dy * 100} r="4.5" fill="#1e1e1e" stroke="#fbbf24" strokeWidth="2"
+                                 className="cursor-grab hover:scale-150 transition-transform" onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setActiveDrag({type: 'hIn', index: i}); }} />
+                            </g>
+                          )}
+                          {isSelected && p.hOut && (
+                            <g>
+                              <line x1={px} y1={py} x2={px + p.hOut.dx * 100} y2={py - p.hOut.dy * 100} stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2,2" />
+                              <circle cx={px + p.hOut.dx * 100} cy={py - p.hOut.dy * 100} r="4.5" fill="#1e1e1e" stroke="#fbbf24" strokeWidth="2"
+                                 className="cursor-grab hover:scale-150 transition-transform" onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setActiveDrag({type: 'hOut', index: i}); }} />
+                            </g>
+                          )}
+                          <circle cx={px} cy={py} r="15" fill="transparent" className="cursor-pointer"
+                            onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setSelectedPoint(i); setActiveDrag({type: 'point', index: i}); }} />
+                          <circle cx={px} cy={py} r={activeDrag?.index === i && activeDrag?.type === 'point' ? "7" : "4"} 
+                            fill={isSelected ? "#fbbf24" : "#fff"} className="transition-all pointer-events-none" />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500 text-center">Setiap ketukan musik masuk, pergerakan kamera dan grafik Speed Graph akan berganti secara mandiri!</p>
+              </div>
+
+              <div className="mt-2 bg-[#121212] border border-[#333] rounded-xl shadow-[inset_0_0_20px_rgba(0,0,0,1)] relative h-28 flex flex-col justify-end group overflow-hidden">
+                 <div className="absolute top-3 left-3 flex items-center gap-2 z-10 bg-black/50 px-2 py-1 rounded-md backdrop-blur-md border border-white/5">
+                    <span className={`w-2 h-2 rounded-full transition-colors ${isPlayingAudio ? 'bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]' : 'bg-slate-600'}`}></span>
+                    <span className="text-[9px] font-bold text-slate-300 tracking-widest">LIVE AUDIO EQ</span>
+                 </div>
+                 <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px] opacity-20 pointer-events-none"></div>
+                 
+                 <canvas ref={canvasEqRef} width={600} height={120} className="w-full h-full opacity-90 px-2 pb-1" />
+              </div>
+
+            </div>
+          </div>
+
+          <div className="w-full max-w-5xl bg-[#151515] border border-[#333] rounded-xl p-4 shadow-lg">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300 mb-4 border-b border-[#333] pb-2">Project Media Pool</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="col-span-1 flex flex-col gap-2">
+                 <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-4 cursor-pointer hover:border-purple-500 transition-colors bg-[#0f0f0f] overflow-hidden">
+                    {isAnalyzing ? (
+                      <Loader2 size={24} className="text-purple-500 animate-spin mb-2 flex-shrink-0" />
+                    ) : (
+                      <Music size={24} className={audioFile ? "text-purple-500 mb-2 flex-shrink-0" : "text-slate-500 mb-2 flex-shrink-0"} />
+                    )}
+                    <p className="text-xs font-bold text-center truncate w-full px-2" title={audioFile ? audioFile.name : "Upload Musik"}>
+                      {audioFile ? audioFile.name : "1. Upload Musik"}
+                    </p>
+                    <input type="file" accept="audio/*" className="hidden" onChange={handleAudioUpload} />
+                 </label>
+              </div>
+
+              <div className="col-span-1 md:col-span-2 flex flex-col gap-2">
+                <div className="flex gap-2 h-full">
+                  <label className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-2 cursor-pointer hover:border-blue-500 transition-colors bg-[#0f0f0f]">
+                     <Upload size={20} className="text-blue-500 mb-1" />
+                     <p className="text-[10px] font-bold text-center leading-tight">2. Upload<br/>Foto/Video</p>
+                     <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMediaUpload} />
+                  </label>
+                  
+                  <div className="flex-1 flex overflow-x-auto gap-2 p-1 snap-x scrollbar-thin scrollbar-thumb-[#444] scrollbar-track-transparent">
+                    {mediaFiles.map((media, i) => (
+                      <div key={i} className="relative w-16 h-20 flex-shrink-0 snap-start group" onClick={() => setCurrentMediaIndex(i)}>
+                        {media.type === 'video' ? (
+                            <video src={media.url} className={`w-full h-full object-cover rounded cursor-pointer ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} />
+                        ) : (
+                            <img src={media.url} className={`w-full h-full object-cover rounded cursor-pointer ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} alt="thumb"/>
+                        )}
+                        {media.type === 'video' && <div className="absolute top-1 left-1 bg-blue-600/80 rounded-sm px-1"><Video size={8} /></div>}
+                        <span className="absolute bottom-1 right-1 bg-black/70 text-[9px] px-1 rounded pointer-events-none">{i+1}</span>
+                        <button onClick={(e) => {e.stopPropagation(); removeMedia(i);}} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-1 flex items-center justify-center">
+                 <button 
+                    onClick={() => handlePlaySequence()}
+                    disabled={mediaFiles.length === 0 || !audioUrl || isRecording}
+                    className={`w-full py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
+                      mediaFiles.length > 0 && audioUrl 
+                        ? isPlayingAudio 
+                            ? 'bg-red-600 hover:bg-red-700 text-white' 
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/25'
+                        : 'bg-[#222] text-slate-500 cursor-not-allowed border border-[#333]'
+                    }`}
+                 >
+                    <div className={!isPlayingAudio ? 'hidden' : 'block w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin'}></div>
+                    <span className="font-bold text-[13px] tracking-wide text-center">
+                      {isPlayingAudio ? 'MEMUTAR SEQUENCE...' : '3. PREVIEW AUDIO SEQUENCE'}
+                    </span>
+                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Melakukan render aplikasi React ke dalam div #root
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
