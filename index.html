@@ -199,6 +199,7 @@
       const [audioUrl, setAudioUrl] = useState(null);
       const [beats, setBeats] = useState([]); 
       const beatsRef = useRef([]); // Ref tracking untuk fast-rendering math
+      const currentBeatIdxRef = useRef(0); // PERBAIKAN: Penyelaras presisi Canvas & Layar Preview
       
       const [isAnalyzing, setIsAnalyzing] = useState(false);
       
@@ -316,27 +317,27 @@
           setIsPlayingAudio(false);
           setIsPreviewing(false);
         }
-        // PERBAIKAN: e.target.value = '' dihapus dari sini agar file stream tidak terputus di HP
+        e.target.value = ''; // Aman di sini
       };
 
       const handleAudioUpload = async (e) => {
         const file = e.target.files[0];
-        if (file) {
-          if (audioUrl) {
-              URL.revokeObjectURL(audioUrl); 
-          }
-          setAudioFile(file);
-          setAudioUrl(URL.createObjectURL(file));
-          analyzeAudio(file);
+        if (!file) return;
+        
+        if (audioUrl) {
+            URL.revokeObjectURL(audioUrl); 
         }
-        // PERBAIKAN: e.target.value = '' dihapus dari sini
+        setAudioFile(file);
+        setAudioUrl(URL.createObjectURL(file));
+        await analyzeAudio(file); // Tunggu sampai selesai
+        
+        // PERBAIKAN: Reset aman setelah Blob sukses diproses
+        e.target.value = ''; 
       };
 
       const analyzeAudio = async (file) => {
         setIsAnalyzing(true);
         try {
-          // PERBAIKAN: Inisialisasi AudioContext dipindah ke paling atas!
-          // Harus dilakukan SEBELUM 'await' apa pun agar browser HP tidak memblokir izin suara.
           const AudioContext = window.AudioContext || window.webkitAudioContext;
           const audioCtx = new AudioContext();
 
@@ -471,7 +472,7 @@
 
       useEffect(() => {
         if (!isPlayingAudio || !audioRef.current || beats.length === 0 || mediaFiles.length === 0) return;
-        let currentBeatIdx = 0;
+        let currentBeatIdx = currentBeatIdxRef.current; // Update dari master
 
         const loop = () => {
           const currentTime = audioRef.current.currentTime;
@@ -481,6 +482,8 @@
           
           if (currentTime >= nextBeatTime && currentBeatIdx < beats.length - 1) {
              currentBeatIdx++;
+             currentBeatIdxRef.current = currentBeatIdx; // PERBAIKAN: Sinkronkan posisi ketukan untuk Canvas
+             
              setCurrentMediaIndex(currentBeatIdx % mediaFiles.length); 
              
              setCurrentEffectKey(getRandomEffect(currentEffectKeyRef.current));
@@ -566,6 +569,7 @@
         if (forceRestart === true) {
             audioRef.current.pause();
             audioRef.current.currentTime = 0;
+            currentBeatIdxRef.current = 0; // Reset ke awal
             setCurrentMediaIndex(0);
             if (beats.length > 1) {
                 setCurrentBeatDuration(beats[1] - beats[0]);
@@ -591,6 +595,7 @@
           setTriggerAnim(false);
           if (audioRef.current.ended) {
               audioRef.current.currentTime = 0;
+              currentBeatIdxRef.current = 0; // Reset
               setCurrentMediaIndex(0);
           }
           if (beats.length > 1) {
@@ -619,6 +624,7 @@
         isRecordingRef.current = true;
         
         audioRef.current.currentTime = 0;
+        currentBeatIdxRef.current = 0; // Reset
         setCurrentMediaIndex(0);
         if (beats.length > 1) {
             setCurrentBeatDuration(beats[1] - beats[0]);
@@ -645,7 +651,6 @@
                 audioTracks = audioSourceRef.current.dest.stream.getAudioTracks();
             }
 
-            // PERBAIKAN: Paksa codec kualitas tertinggi, utamakan VP9 yang ringan & tajam untuk Android
             const getBestMimeType = () => {
                 const types = [
                     'video/webm;codecs=vp9', 
@@ -659,7 +664,6 @@
                 return 'video/webm'; 
             };
 
-            // PERBAIKAN: Tangkap di 60 FPS murni agar tidak patah-patah
             const canvasStream = canvasRef.current.captureStream(60); 
             const combinedStream = new MediaStream([
                 ...canvasStream.getVideoTracks(),
@@ -669,7 +673,7 @@
             const mimeType = getBestMimeType();
             const recorderOptions = { 
                 mimeType: mimeType,
-                videoBitsPerSecond: 16000000, // PERBAIKAN: Bitrate diangkat ganda ke 16Mbps (Super Tajam)
+                videoBitsPerSecond: 16000000, 
                 audioBitsPerSecond: 192000   
             };
             
@@ -705,9 +709,7 @@
             setTimeout(() => setTriggerAnim(true), 50);
             
             let c_imgW = 1, c_imgH = 1;
-            let c_drawW = 1, c_drawH = 1;
 
-            // PERBAIKAN REVOLUSIONER: Menggambar dengan kalkulasi murni (Matematika), tidak lagi menumpang ke DOM element / CSS yg berat!
             const drawFrame = () => {
                 if (!isRecordingRef.current) return;
 
@@ -722,31 +724,24 @@
                 const mediaEl = document.getElementById('current-media-element');
                 
                 if (mediaEl) {
-                    // Update deteksi ukuran video sumber
-                    if (c_imgW <= 1 || c_imgH <= 1) {
-                        c_imgW = mediaEl.videoWidth || mediaEl.naturalWidth || 1;
-                        c_imgH = mediaEl.videoHeight || mediaEl.naturalHeight || 1;
-                    }
+                    // Update deteksi ukuran video asli
+                    c_imgW = mediaEl.videoWidth || mediaEl.naturalWidth || 1;
+                    c_imgH = mediaEl.videoHeight || mediaEl.naturalHeight || 1;
 
-                    const coverScale = Math.max(canvas.width / c_imgW, canvas.height / c_imgH);
-                    const safeScale = coverScale * 1.50; // Padding ruang gerak 50%
-                    c_drawW = c_imgW * safeScale;
-                    c_drawH = c_imgH * safeScale;
+                    // PERBAIKAN: Persis mereplikasi 'object-fit: cover' milik CSS Layar
+                    const tW = canvas.width;
+                    const tH = canvas.height;
+                    const coverRatio = Math.max(tW / c_imgW, tH / c_imgH);
+                    const drawW = c_imgW * coverRatio;
+                    const drawH = c_imgH * coverRatio;
 
                     ctx.fillStyle = 'black';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
                     ctx.save();
                     
-                    // Kalkulasi progress animasi berbasis waktu audio aktual
+                    // Kalkulasi waktu dan Sinkronisasi Tracker Murni dari Layar
                     const cTime = audioRef.current ? audioRef.current.currentTime : 0;
-                    let bIdx = 0;
-                    for (let i = 0; i < beatsRef.current.length - 1; i++) {
-                        if (cTime >= beatsRef.current[i] && cTime < beatsRef.current[i+1]) {
-                            bIdx = i; break;
-                        }
-                    }
-                    if (beatsRef.current.length > 0 && cTime >= beatsRef.current[beatsRef.current.length-1]) bIdx = beatsRef.current.length - 1;
+                    const bIdx = currentBeatIdxRef.current; // Diambil akurat dari state UI!
                     
                     const currentBeatTime = beatsRef.current[bIdx] || 0;
                     const nextBeatTime = bIdx < beatsRef.current.length - 1 ? beatsRef.current[bIdx + 1] : (audioRef.current ? audioRef.current.duration : 1);
@@ -783,10 +778,10 @@
                     const skX = lerp(sP.skX, eP.skX, easedPct);
                     const skY = lerp(sP.skY, eP.skY, easedPct);
 
-                    // Set Matriks Canvas Langsung ke GPU
-                    ctx.translate(canvas.width / 2, canvas.height / 2);
+                    // Set Matriks GPU Canvas PERSIS dengan kalkulasi persentase CSS
+                    ctx.translate(tW / 2, tH / 2); // Titik Tengah (Transform Origin)
                     ctx.scale(scale, scale);
-                    ctx.translate((c_drawW * tx) / 100, (c_drawH * ty) / 100);
+                    ctx.translate((tW * tx) / 100, (tH * ty) / 100); // Bergerak berdasarkan persen luas layar
                     ctx.rotate(r * Math.PI / 180);
                     if (skX || skY) {
                         ctx.transform(1, Math.tan((skY||0)*Math.PI/180), Math.tan((skX||0)*Math.PI/180), 1, 0, 0);
@@ -795,7 +790,8 @@
                     if (c_imgW > 1 && c_imgH > 1) {
                         ctx.imageSmoothingEnabled = true;
                         ctx.imageSmoothingQuality = 'high';
-                        ctx.drawImage(mediaEl, -c_drawW / 2, -c_drawH / 2, c_drawW, c_drawH);
+                        // Gambar dengan rasio Cover
+                        ctx.drawImage(mediaEl, -drawW / 2, -drawH / 2, drawW, drawH);
                     }
                     
                     ctx.restore();
@@ -1399,8 +1395,8 @@
                         {!audioFile && <p className="text-[9px] text-slate-500 text-center mt-1 px-1 leading-tight">Bisa pakai file video, akan diambil suaranya saja.</p>}
                       </>
                     )}
-                    {/* PERBAIKAN: Reset value dilakukan di event onClick sebelum file dipilih */}
-                    <input type="file" accept="audio/*,video/*" className="hidden" onChange={handleAudioUpload} onClick={(e) => { e.target.value = null; }} />
+                    {/* Input tanpa onClick yang memotong proses */}
+                    <input type="file" accept="audio/*,video/*" className="hidden" onChange={handleAudioUpload} />
                  </label>
               </div>
 
@@ -1409,8 +1405,8 @@
                   <label className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-2 cursor-pointer hover:border-blue-500 transition-colors bg-[#0f0f0f]">
                      <Upload size={20} className="text-blue-500 mb-1" />
                      <p className="text-[10px] font-bold text-center leading-tight">2. Upload<br/>Foto/Video</p>
-                     {/* PERBAIKAN: Reset value dilakukan di event onClick */}
-                     <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMediaUpload} onClick={(e) => { e.target.value = null; }} />
+                     {/* Input tanpa onClick yang memotong proses */}
+                     <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMediaUpload} />
                   </label>
                   
                   <div className="flex-1 flex overflow-x-auto gap-2 p-1 snap-x scrollbar-thin scrollbar-thumb-[#444] scrollbar-track-transparent">
