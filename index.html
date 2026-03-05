@@ -267,8 +267,9 @@
       const progressBarRef = useRef(null);
       const progressTextRef = useRef(null);
 
-      const canvasRenderWidth = aspectRatio === '9/16' ? 1080 : aspectRatio === '16/9' ? 1920 : 1080;
-      const canvasRenderHeight = aspectRatio === '9/16' ? 1920 : aspectRatio === '16/9' ? 1080 : 1080;
+      // PERBAIKAN: Resolusi Canvas diubah jadi 720p HD (Lebih ringan & anti patah-patah di HP)
+      const canvasRenderWidth = aspectRatio === '9/16' ? 720 : aspectRatio === '16/9' ? 1280 : 720;
+      const canvasRenderHeight = aspectRatio === '9/16' ? 1280 : aspectRatio === '16/9' ? 720 : 720;
 
       const initAudioSystem = async () => {
         if (!audioRef.current) return;
@@ -651,11 +652,12 @@
                 audioTracks = audioSourceRef.current.dest.stream.getAudioTracks();
             }
 
+            // PERBAIKAN: Utamakan codec H.264 atau VP8 yang lebih bersahabat dengan Hardware HP
             const getBestMimeType = () => {
                 const types = [
-                    'video/webm;codecs=vp9', 
-                    'video/mp4;codecs=avc1,mp4a.40.2', 
-                    'video/mp4', 
+                    'video/mp4;codecs=avc1,mp4a.40.2', // H.264
+                    'video/webm;codecs=h264',
+                    'video/webm;codecs=vp8', // VP8 Lebih ringan dari VP9
                     'video/webm' 
                 ];
                 for (const t of types) {
@@ -664,7 +666,8 @@
                 return 'video/webm'; 
             };
 
-            const canvasStream = canvasRef.current.captureStream(60); 
+            // PERBAIKAN: Tangkap di 30 FPS. Ini sangat krusial agar tidak ada frame drop (patah-patah) di HP!
+            const canvasStream = canvasRef.current.captureStream(30); 
             const combinedStream = new MediaStream([
                 ...canvasStream.getVideoTracks(),
                 ...audioTracks
@@ -673,7 +676,8 @@
             const mimeType = getBestMimeType();
             const recorderOptions = { 
                 mimeType: mimeType,
-                videoBitsPerSecond: 16000000, 
+                // PERBAIKAN: Bitrate 8Mbps. Ini batas maksimal ideal encoder HP untuk resolusi 720p.
+                videoBitsPerSecond: 8000000, 
                 audioBitsPerSecond: 192000   
             };
             
