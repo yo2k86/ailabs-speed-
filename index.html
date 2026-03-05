@@ -404,20 +404,27 @@
         setIsAnalyzing(false);
       };
 
+      // --- PERBAIKAN: Memastikan tidak ada Memory Leak di Animasi EQ ---
       useEffect(() => {
+        let isEqActive = true;
+
         if (!isPlayingAudio) {
             if (eqAnimRef.current) cancelAnimationFrame(eqAnimRef.current);
             if (canvasEqRef.current) {
                  const canvas = canvasEqRef.current;
                  const ctx = canvas.getContext('2d');
-                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                 ctx.fillStyle = '#333';
-                 ctx.fillRect(0, canvas.height - 2, canvas.width, 2);
+                 if (ctx) {
+                     ctx.clearRect(0, 0, canvas.width, canvas.height);
+                     ctx.fillStyle = '#333';
+                     ctx.fillRect(0, canvas.height - 2, canvas.width, 2);
+                 }
             }
             return;
         }
 
         const drawEq = () => {
+            if (!isEqActive) return; // Hentikan rekursi jika komponen tidak aktif
+            
             if (analyserRef.current && dataArrayRef.current && canvasEqRef.current) {
                 const canvas = canvasEqRef.current;
                 const ctx = canvas.getContext('2d');
@@ -456,6 +463,7 @@
         drawEq(); 
         
         return () => {
+            isEqActive = false; // Tandai untuk berhenti
             if (eqAnimRef.current) cancelAnimationFrame(eqAnimRef.current);
         };
       }, [isPlayingAudio]);
@@ -836,7 +844,14 @@
       };
 
       const removeMedia = (idx) => {
-          setMediaFiles(prev => prev.filter((_, i) => i !== idx));
+          setMediaFiles(prev => {
+              const fileToRemove = prev[idx];
+              // PERBAIKAN: Bersihkan memori RAM dari file yang dihapus!
+              if (fileToRemove && fileToRemove.url) {
+                  URL.revokeObjectURL(fileToRemove.url); 
+              }
+              return prev.filter((_, i) => i !== idx);
+          });
       };
 
       const handleTrimPointerDown = (e, type) => {
