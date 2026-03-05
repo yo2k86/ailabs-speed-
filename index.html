@@ -41,130 +41,132 @@
     const Download = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>);
     const Scissors = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="6" cy="6" r="3"></circle><path d="M8.12 8.12 12 12"></path><path d="M20 4 8.12 15.88"></path><circle cx="6" cy="18" r="3"></circle><path d="M14.8 14.8 20 20"></path></svg>);
 
-    // --- DATA PROMPTS & DEFAULT TIPE EFEK ---
+    // --- DATA PROMPTS & DEFAULT TIPE EFEK (Dikonversi ke Object untuk Pure Math Rendering) ---
     const promptsData = {
       tesseractWarp: {
         title: "4D Tesseract Warp",
         text: "Membengkokkan ruang dengan rotasi dan zoom seimbang.",
-        startTransform: 'scale(1.8) rotate(12deg) translate(-5%, -5%)',
-        endTransform: 'scale(1.2) rotate(-1deg) translate(2%, 2%)',
+        startTransform: { s: 1.8, r: 12, tx: -5, ty: -5 },
+        endTransform: { s: 1.2, r: -1, tx: 2, ty: 2 },
       },
       quantumLeapRight: {
         title: "4D Quantum Leap Right",
         text: "Lompatan dimensi ke kanan dengan tarikan medium.",
-        startTransform: 'scale(1.2) translate(-4%, 0) skewX(-3deg)',
-        endTransform: 'scale(1.6) translate(8%, 0) skewX(2deg)',
+        startTransform: { s: 1.2, tx: -4, skX: -3 },
+        endTransform: { s: 1.6, tx: 8, skX: 2 },
       },
       quantumLeapLeft: {
         title: "4D Quantum Leap Left",
         text: "Lompatan dimensi ke kiri dengan tarikan medium.",
-        startTransform: 'scale(1.6) translate(8%, 0) skewX(2deg)',
-        endTransform: 'scale(1.2) translate(-4%, 0) skewX(-3deg)',
+        startTransform: { s: 1.6, tx: 8, skX: 2 },
+        endTransform: { s: 1.2, tx: -4, skX: -3 },
       },
       dimensionDrift: {
         title: "4D Dimension Drift",
         text: "Mengambang melintasi ruang angkasa secara mulus.",
-        startTransform: 'scale(1.7) rotate(-8deg) translate(5%, 5%)',
-        endTransform: 'scale(1.25) rotate(2deg) translate(-3%, -3%)',
+        startTransform: { s: 1.7, r: -8, tx: 5, ty: 5 },
+        endTransform: { s: 1.25, r: 2, tx: -3, ty: -3 },
       },
       hyperVortex: {
         title: "4D Hyper Vortex",
         text: "Pusaran dimensi yang fokus pada subjek.",
-        startTransform: 'scale(2.0) rotate(15deg)',
-        endTransform: 'scale(1.15) rotate(0deg)',
+        startTransform: { s: 2.0, r: 15 },
+        endTransform: { s: 1.15, r: 0 },
       },
       timeSlipPush: {
         title: "4D Time-Slip Push",
         text: "Dorongan waktu dinamis ke depan.",
-        startTransform: 'scale(1.15) translateY(2%)',
-        endTransform: 'scale(1.7) translateY(-6%)',
+        startTransform: { s: 1.15, ty: 2 },
+        endTransform: { s: 1.7, ty: -6 },
       },
       timeSlipPull: {
         title: "4D Time-Slip Pull",
         text: "Tarik mundur dinamis.",
-        startTransform: 'scale(1.7) translateY(-6%)',
-        endTransform: 'scale(1.15) translateY(2%)',
+        startTransform: { s: 1.7, ty: -6 },
+        endTransform: { s: 1.15, ty: 2 },
       },
       gravityCrush: {
         title: "4D Gravity Crush",
         text: "Bantingan gravitasi fokus tengah.",
-        startTransform: 'scale(1.6) rotate(6deg) translate(0, -8%)',
-        endTransform: 'scale(1.2) rotate(-2deg) translate(0, 4%)',
+        startTransform: { s: 1.6, r: 6, ty: -8 },
+        endTransform: { s: 1.2, r: -2, ty: 4 },
       },
-      // === EFEK TAMBAHAN BARU ===
       panoramicGlideRight: {
         title: "4D Panoramic Glide Right",
         text: "Pergerakan mulus horizontal ke kanan.",
-        startTransform: 'scale(1.3) translateX(-8%)',
-        endTransform: 'scale(1.3) translateX(8%)',
+        startTransform: { s: 1.3, tx: -8 },
+        endTransform: { s: 1.3, tx: 8 },
       },
       panoramicGlideLeft: {
         title: "4D Panoramic Glide Left",
         text: "Pergerakan mulus horizontal ke kiri.",
-        startTransform: 'scale(1.3) translateX(8%)',
-        endTransform: 'scale(1.3) translateX(-8%)',
+        startTransform: { s: 1.3, tx: 8 },
+        endTransform: { s: 1.3, tx: -8 },
       },
       cinematicRise: {
         title: "4D Cinematic Rise",
         text: "Pergerakan vertikal mulus ke atas.",
-        startTransform: 'scale(1.25) translateY(8%)',
-        endTransform: 'scale(1.25) translateY(-8%)',
+        startTransform: { s: 1.25, ty: 8 },
+        endTransform: { s: 1.25, ty: -8 },
       },
       cinematicFall: {
         title: "4D Cinematic Fall",
         text: "Pergerakan vertikal mulus ke bawah.",
-        startTransform: 'scale(1.25) translateY(-8%)',
-        endTransform: 'scale(1.25) translateY(8%)',
+        startTransform: { s: 1.25, ty: -8 },
+        endTransform: { s: 1.25, ty: 8 },
       },
       dutchAngleRight: {
         title: "4D Dutch Angle Right",
         text: "Rotasi kamera miring ke kanan dengan zoom.",
-        startTransform: 'scale(1.5) rotate(-10deg)',
-        endTransform: 'scale(1.1) rotate(4deg)',
+        startTransform: { s: 1.5, r: -10 },
+        endTransform: { s: 1.1, r: 4 },
       },
       dutchAngleLeft: {
         title: "4D Dutch Angle Left",
         text: "Rotasi kamera miring ke kiri dengan zoom.",
-        startTransform: 'scale(1.5) rotate(10deg)',
-        endTransform: 'scale(1.1) rotate(-4deg)',
+        startTransform: { s: 1.5, r: 10 },
+        endTransform: { s: 1.1, r: -4 },
       },
       hyperspaceDive: {
         title: "4D Hyperspace Dive",
         text: "Terjun cepat ke dalam dimensi.",
-        startTransform: 'scale(1.0)',
-        endTransform: 'scale(2.5)',
+        startTransform: { s: 1.0 },
+        endTransform: { s: 2.5 },
       },
       hyperspaceEscape: {
         title: "4D Hyperspace Escape",
         text: "Menarik diri dengan cepat dari dimensi.",
-        startTransform: 'scale(2.5)',
-        endTransform: 'scale(1.0)',
+        startTransform: { s: 2.5 },
+        endTransform: { s: 1.0 },
       },
       spatialTwist: {
         title: "4D Spatial Twist",
         text: "Distorsi ruang miring yang ekstrim.",
-        startTransform: 'scale(1.4) skewY(-6deg) translate(-4%, -4%)',
-        endTransform: 'scale(1.4) skewY(6deg) translate(4%, 4%)',
+        startTransform: { s: 1.4, skY: -6, tx: -4, ty: -4 },
+        endTransform: { s: 1.4, skY: 6, tx: 4, ty: 4 },
       },
       orbitSweep: {
         title: "4D Orbit Sweep",
         text: "Ayunan rotasi menyapu dari samping.",
-        startTransform: 'scale(1.6) rotate(-18deg) translateX(-12%)',
-        endTransform: 'scale(1.1) rotate(0deg) translateX(0%)',
+        startTransform: { s: 1.6, r: -18, tx: -12 },
+        endTransform: { s: 1.1, r: 0, tx: 0 },
       },
       phantomSlide: {
         title: "4D Phantom Slide",
         text: "Gesekan hantu dengan kemiringan horizontal.",
-        startTransform: 'scale(1.4) translateX(12%) skewX(8deg)',
-        endTransform: 'scale(1.1) translateX(-4%) skewX(0deg)',
+        startTransform: { s: 1.4, tx: 12, skX: 8 },
+        endTransform: { s: 1.1, tx: -4, skX: 0 },
       },
       echoDrop: {
         title: "4D Echo Drop",
         text: "Jatuh berputar menjauh dari kamera.",
-        startTransform: 'scale(2.2) rotate(12deg) translateY(5%)',
-        endTransform: 'scale(1.0) rotate(-2deg) translateY(-5%)',
+        startTransform: { s: 2.2, r: 12, ty: 5 },
+        endTransform: { s: 1.0, r: -2, ty: -5 },
       }
     };
+
+    // Helper pembangun string CSS
+    const getCssTransform = (t) => `scale(${t?.s ?? 1}) translate(${t?.tx ?? 0}%, ${t?.ty ?? 0}%) rotate(${t?.r ?? 0}deg) skewX(${t?.skX ?? 0}deg) skewY(${t?.skY ?? 0}deg)`;
 
     const graphPresets = {
       hyperWhip: [ 
@@ -181,7 +183,6 @@
         { id: 2, x: 0.4, y: 0.1, hIn: { dx: -0.2, dy: -0.1 }, hOut: { dx: 0.3, dy: -0.1 } },
         { id: 3, x: 0.9, y: 0.1, hIn: { dx: -0.1, dy: 0.9 }, hOut: null }
       ],
-      // === PRESET GRAFIK BARU ===
       smoothGlide: [
         { id: 1, x: 0.0, y: 0.0, hIn: null, hOut: { dx: 0.4, dy: 0 } },
         { id: 2, x: 1.0, y: 1.0, hIn: { dx: -0.4, dy: 0 }, hOut: null }
@@ -197,6 +198,8 @@
       const [audioFile, setAudioFile] = useState(null);
       const [audioUrl, setAudioUrl] = useState(null);
       const [beats, setBeats] = useState([]); 
+      const beatsRef = useRef([]); // Ref tracking untuk fast-rendering math
+      
       const [isAnalyzing, setIsAnalyzing] = useState(false);
       
       const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -222,6 +225,10 @@
         currentEffectKeyRef.current = currentEffectKey;
       }, [currentEffectKey]);
 
+      useEffect(() => {
+        beatsRef.current = beats;
+      }, [beats]);
+
       const getRandomEffect = (currentKey) => {
         const keys = Object.keys(promptsData);
         const available = keys.filter(k => k !== currentKey);
@@ -246,6 +253,9 @@
       const svgRef = useRef(null);
       const [activeDrag, setActiveDrag] = useState(null); 
       const [selectedPoint, setSelectedPoint] = useState(null); 
+
+      // --- LUT (Look Up Table) untuk Pure Math Rendering (Sangat cepat di HP) ---
+      const currentLUTRef = useRef([]);
 
       const [isRecording, setIsRecording] = useState(false);
       const isRecordingRef = useRef(false);
@@ -306,29 +316,32 @@
           setIsPlayingAudio(false);
           setIsPreviewing(false);
         }
-        e.target.value = ''; // FIX: Reset input agar HP tidak nge-bug saat upload file sama
+        // PERBAIKAN: e.target.value = '' dihapus dari sini agar file stream tidak terputus di HP
       };
 
       const handleAudioUpload = async (e) => {
         const file = e.target.files[0];
         if (file) {
           if (audioUrl) {
-              URL.revokeObjectURL(audioUrl); // FIX: Cegah kebocoran memori RAM
+              URL.revokeObjectURL(audioUrl); 
           }
           setAudioFile(file);
           setAudioUrl(URL.createObjectURL(file));
           analyzeAudio(file);
         }
-        e.target.value = ''; // FIX: Reset input
+        // PERBAIKAN: e.target.value = '' dihapus dari sini
       };
 
       const analyzeAudio = async (file) => {
         setIsAnalyzing(true);
         try {
+          // PERBAIKAN: Inisialisasi AudioContext dipindah ke paling atas!
+          // Harus dilakukan SEBELUM 'await' apa pun agar browser HP tidak memblokir izin suara.
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          const audioCtx = new AudioContext();
+
           const arrayBuffer = await file.arrayBuffer();
-          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
           
-          // FIX: Gunakan cara callback yg dibungkus Promise agar Safari iOS tidak crash
           const audioBuffer = await new Promise((resolve, reject) => {
               audioCtx.decodeAudioData(arrayBuffer, resolve, reject).catch(reject);
           });
@@ -632,11 +645,12 @@
                 audioTracks = audioSourceRef.current.dest.stream.getAudioTracks();
             }
 
+            // PERBAIKAN: Paksa codec kualitas tertinggi, utamakan VP9 yang ringan & tajam untuk Android
             const getBestMimeType = () => {
                 const types = [
+                    'video/webm;codecs=vp9', 
                     'video/mp4;codecs=avc1,mp4a.40.2', 
                     'video/mp4', 
-                    'video/webm;codecs=h264', 
                     'video/webm' 
                 ];
                 for (const t of types) {
@@ -645,7 +659,8 @@
                 return 'video/webm'; 
             };
 
-            const canvasStream = canvasRef.current.captureStream(30); 
+            // PERBAIKAN: Tangkap di 60 FPS murni agar tidak patah-patah
+            const canvasStream = canvasRef.current.captureStream(60); 
             const combinedStream = new MediaStream([
                 ...canvasStream.getVideoTracks(),
                 ...audioTracks
@@ -654,8 +669,8 @@
             const mimeType = getBestMimeType();
             const recorderOptions = { 
                 mimeType: mimeType,
-                videoBitsPerSecond: 8000000, 
-                audioBitsPerSecond: 128000   
+                videoBitsPerSecond: 16000000, // PERBAIKAN: Bitrate diangkat ganda ke 16Mbps (Super Tajam)
+                audioBitsPerSecond: 192000   
             };
             
             const recorder = new MediaRecorder(combinedStream, recorderOptions);
@@ -689,10 +704,10 @@
             setTriggerAnim(false);
             setTimeout(() => setTriggerAnim(true), 50);
             
-            let cachedNode = null;
-            let c_domW = 1, c_domH = 1, c_imgW = 1, c_imgH = 1;
-            let c_scaleX = 1, c_scaleY = 1, c_drawW = 1, c_drawH = 1;
+            let c_imgW = 1, c_imgH = 1;
+            let c_drawW = 1, c_drawH = 1;
 
+            // PERBAIKAN REVOLUSIONER: Menggambar dengan kalkulasi murni (Matematika), tidak lagi menumpang ke DOM element / CSS yg berat!
             const drawFrame = () => {
                 if (!isRecordingRef.current) return;
 
@@ -707,44 +722,74 @@
                 const mediaEl = document.getElementById('current-media-element');
                 
                 if (mediaEl) {
-                    if (cachedNode !== mediaEl || c_imgW <= 1) {
-                        cachedNode = mediaEl;
-                        c_domW = mediaEl.offsetWidth || 1;
-                        c_domH = mediaEl.offsetHeight || 1;
+                    // Update deteksi ukuran video sumber
+                    if (c_imgW <= 1 || c_imgH <= 1) {
                         c_imgW = mediaEl.videoWidth || mediaEl.naturalWidth || 1;
                         c_imgH = mediaEl.videoHeight || mediaEl.naturalHeight || 1;
-                        
-                        c_scaleX = canvas.width / c_domW;
-                        c_scaleY = canvas.height / c_domH;
-                        
-                        if (c_imgW > 1 && c_imgH > 1) {
-                            const coverScale = Math.max(canvas.width / c_imgW, canvas.height / c_imgH);
-                            const safeScale = coverScale * 1.30; 
-                            c_drawW = c_imgW * safeScale;
-                            c_drawH = c_imgH * safeScale;
-                        }
                     }
+
+                    const coverScale = Math.max(canvas.width / c_imgW, canvas.height / c_imgH);
+                    const safeScale = coverScale * 1.50; // Padding ruang gerak 50%
+                    c_drawW = c_imgW * safeScale;
+                    c_drawH = c_imgH * safeScale;
 
                     ctx.fillStyle = 'black';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     
-                    const compStyle = window.getComputedStyle(mediaEl);
-                    const transformStr = compStyle.transform;
-                    
                     ctx.save();
-                    ctx.translate(canvas.width / 2, canvas.height / 2);
-
-                    if (transformStr && transformStr !== 'none') {
-                        try {
-                            const matrix = new DOMMatrix(transformStr);
-                            ctx.transform(
-                                matrix.a, matrix.b,
-                                matrix.c, matrix.d,
-                                matrix.e * c_scaleX, matrix.f * c_scaleY
-                            );
-                        } catch(e) {
-                            console.error("Gagal parsing Matrix:", e);
+                    
+                    // Kalkulasi progress animasi berbasis waktu audio aktual
+                    const cTime = audioRef.current ? audioRef.current.currentTime : 0;
+                    let bIdx = 0;
+                    for (let i = 0; i < beatsRef.current.length - 1; i++) {
+                        if (cTime >= beatsRef.current[i] && cTime < beatsRef.current[i+1]) {
+                            bIdx = i; break;
                         }
+                    }
+                    if (beatsRef.current.length > 0 && cTime >= beatsRef.current[beatsRef.current.length-1]) bIdx = beatsRef.current.length - 1;
+                    
+                    const currentBeatTime = beatsRef.current[bIdx] || 0;
+                    const nextBeatTime = bIdx < beatsRef.current.length - 1 ? beatsRef.current[bIdx + 1] : (audioRef.current ? audioRef.current.duration : 1);
+                    const duration = Math.max(0.001, nextBeatTime - currentBeatTime);
+                    let timePct = Math.max(0, Math.min(1, (cTime - currentBeatTime) / duration));
+
+                    // Lookup kemiringan kurva (Easing Bezier)
+                    let easedPct = timePct;
+                    if (currentLUTRef.current.length > 0) {
+                        const lut = currentLUTRef.current;
+                        let idx = 0;
+                        while(idx < lut.length - 1 && lut[idx+1].x < timePct) idx++;
+                        const p1 = lut[idx];
+                        const p2 = lut[idx+1] || p1;
+                        if (p1.x === p2.x) easedPct = p1.y;
+                        else {
+                            const ratio = (timePct - p1.x) / (p2.x - p1.x);
+                            easedPct = p1.y + ratio * (p2.y - p1.y);
+                        }
+                    }
+
+                    // Terapkan properti Matematika
+                    const effect = promptsData[currentEffectKeyRef.current] || promptsData['tesseractWarp'];
+                    const sP = effect.startTransform;
+                    const eP = effect.endTransform;
+
+                    const lerp = (s, e, t) => (s ?? 0) + ((e ?? 0) - (s ?? 0)) * t;
+                    const lerpS = (s, e, t) => (s ?? 1) + ((e ?? 1) - (s ?? 1)) * t;
+
+                    const scale = lerpS(sP.s, eP.s, easedPct);
+                    const tx = lerp(sP.tx, eP.tx, easedPct);
+                    const ty = lerp(sP.ty, eP.ty, easedPct);
+                    const r = lerp(sP.r, eP.r, easedPct);
+                    const skX = lerp(sP.skX, eP.skX, easedPct);
+                    const skY = lerp(sP.skY, eP.skY, easedPct);
+
+                    // Set Matriks Canvas Langsung ke GPU
+                    ctx.translate(canvas.width / 2, canvas.height / 2);
+                    ctx.scale(scale, scale);
+                    ctx.translate((c_drawW * tx) / 100, (c_drawH * ty) / 100);
+                    ctx.rotate(r * Math.PI / 180);
+                    if (skX || skY) {
+                        ctx.transform(1, Math.tan((skY||0)*Math.PI/180), Math.tan((skX||0)*Math.PI/180), 1, 0, 0);
                     }
                     
                     if (c_imgW > 1 && c_imgH > 1) {
@@ -853,35 +898,39 @@
         };
       }, [activeDrag]);
 
-      const getTimingFunctionString = () => {
-        const beziers = [];
-        for (let i = 0; i < points.length - 1; i++) {
-            beziers.push({
-                p1: points[i],
-                p2: points[i + 1],
-                cp1: { x: points[i].x + (points[i].hOut?.dx || 0), y: points[i].y + (points[i].hOut?.dy || 0) },
-                cp2: { x: points[i + 1].x + (points[i + 1].hIn?.dx || 0), y: points[i + 1].y + (points[i + 1].hIn?.dy || 0) }
-            });
-        }
-
-        const rawSamples = [];
-        beziers.forEach((b) => {
-          for(let j=0; j <= 50; j++) {
-              const t = j/50;
-              const mt = 1-t;
-              const getVal = (prop) => Math.pow(mt, 3) * b.p1[prop] + 3 * Math.pow(mt, 2) * t * b.cp1[prop] + 3 * mt * Math.pow(t, 2) * b.cp2[prop] + Math.pow(t, 3) * b.p2[prop];
-              rawSamples.push({ x: getVal('x'), y: getVal('y') });
+      // --- PERBAIKAN: Hitung Tabel Pencarian (LUT) Kurva Grafis agar Rendering JS Cepat ---
+      useEffect(() => {
+          const beziers = [];
+          for (let i = 0; i < points.length - 1; i++) {
+              beziers.push({
+                  p1: points[i],
+                  p2: points[i + 1],
+                  cp1: { x: points[i].x + (points[i].hOut?.dx || 0), y: points[i].y + (points[i].hOut?.dy || 0) },
+                  cp2: { x: points[i + 1].x + (points[i + 1].hIn?.dx || 0), y: points[i + 1].y + (points[i + 1].hIn?.dy || 0) }
+              });
           }
-        });
-        
-        rawSamples.sort((a,b) => a.x - b.x);
+          const samples = [];
+          beziers.forEach((b) => {
+              for(let j=0; j <= 50; j++) {
+                  const t = j/50;
+                  const mt = 1-t;
+                  const x = Math.pow(mt, 3) * b.p1.x + 3 * Math.pow(mt, 2) * t * b.cp1.x + 3 * mt * Math.pow(t, 2) * b.cp2.x + Math.pow(t, 3) * b.p2.x;
+                  const y = Math.pow(mt, 3) * b.p1.y + 3 * Math.pow(mt, 2) * t * b.cp1.y + 3 * mt * Math.pow(t, 2) * b.cp2.y + Math.pow(t, 3) * b.p2.y;
+                  samples.push({x, y});
+              }
+          });
+          samples.sort((a,b) => a.x - b.x);
+          currentLUTRef.current = samples;
+      }, [points]);
 
+      const getTimingFunctionString = () => {
+        if(currentLUTRef.current.length === 0) return 'linear';
         const finalSamples = [];
         for(let pct = 0; pct <= 100; pct += 2) { 
             const targetX = pct / 100;
-            let closest = rawSamples[0];
+            let closest = currentLUTRef.current[0];
             let minDiff = Infinity;
-            for (const s of rawSamples) {
+            for (const s of currentLUTRef.current) {
                 const diff = Math.abs(s.x - targetX);
                 if (diff < minDiff) { minDiff = diff; closest = s; }
             }
@@ -993,11 +1042,9 @@
                   <>
                     <div className="flex-1 relative overflow-hidden bg-black h-full">
                       
-                      {/* --- PERBAIKAN: Sistem Preload Multi-layer Tanpa Kedipan Hitam --- */}
                       {mediaFiles.map((media, i) => {
                           const isActive = i === safeMediaIndex;
                           
-                          // Pengoptimalan: Muat hanya video saat ini, sebelumnya, dan selanjutnya agar HP tidak lambat (gambar di-load semua)
                           const isNext = i === (safeMediaIndex + 1) % mediaFiles.length;
                           const isPrev = i === (safeMediaIndex - 1 + mediaFiles.length) % mediaFiles.length;
                           const shouldRender = media.type === 'image' || isActive || isNext || isPrev;
@@ -1010,14 +1057,14 @@
                               width: '100%',
                               height: '100%',
                               objectFit: 'cover',
-                              opacity: isActive ? 1 : 0,           // Hanya aktif yang terlihat, yang lain transparan
+                              opacity: isActive ? 1 : 0,           
                               visibility: isActive ? 'visible' : 'hidden',
-                              zIndex: isActive ? 10 : 1,           // Aktif selalu di atas
+                              zIndex: isActive ? 10 : 1,           
                               transformOrigin: 'center center',
                               transitionProperty: isActive ? 'transform' : 'none',
                               transitionDuration: isActive && triggerAnim ? `${activeDuration}s` : '0s',
                               transitionTimingFunction: isActive && triggerAnim ? timingFunctionString : 'linear',
-                              transform: isActive ? (triggerAnim ? currentEffect.endTransform : currentEffect.startTransform) : currentEffect.endTransform,
+                              transform: isActive ? (triggerAnim ? getCssTransform(currentEffect.endTransform) : getCssTransform(currentEffect.startTransform)) : getCssTransform(currentEffect.endTransform),
                           };
 
                           if (media.type === 'video') {
@@ -1030,7 +1077,7 @@
                                     preload={isActive || isNext ? "auto" : "none"}
                                     ref={(el) => {
                                         if (isActive) currentVideoRef.current = el;
-                                        if (!isActive && el && !el.paused) el.pause(); // Otomatis pause video belakang layar
+                                        if (!isActive && el && !el.paused) el.pause(); 
                                     }}
                                     onLoadedMetadata={(e) => {
                                         const duration = e.target.duration;
@@ -1046,7 +1093,6 @@
                                                 return newFiles;
                                             });
                                         }
-                                        // Amankan error currentTime
                                         try { e.target.currentTime = media.startTime || 0; } catch (err) {}
                                     }}
                                     onTimeUpdate={(e) => {
@@ -1353,7 +1399,8 @@
                         {!audioFile && <p className="text-[9px] text-slate-500 text-center mt-1 px-1 leading-tight">Bisa pakai file video, akan diambil suaranya saja.</p>}
                       </>
                     )}
-                    <input type="file" accept="audio/*,video/*" className="hidden" onChange={handleAudioUpload} />
+                    {/* PERBAIKAN: Reset value dilakukan di event onClick sebelum file dipilih */}
+                    <input type="file" accept="audio/*,video/*" className="hidden" onChange={handleAudioUpload} onClick={(e) => { e.target.value = null; }} />
                  </label>
               </div>
 
@@ -1362,7 +1409,8 @@
                   <label className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-2 cursor-pointer hover:border-blue-500 transition-colors bg-[#0f0f0f]">
                      <Upload size={20} className="text-blue-500 mb-1" />
                      <p className="text-[10px] font-bold text-center leading-tight">2. Upload<br/>Foto/Video</p>
-                     <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMediaUpload} />
+                     {/* PERBAIKAN: Reset value dilakukan di event onClick */}
+                     <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMediaUpload} onClick={(e) => { e.target.value = null; }} />
                   </label>
                   
                   <div className="flex-1 flex overflow-x-auto gap-2 p-1 snap-x scrollbar-thin scrollbar-thumb-[#444] scrollbar-track-transparent">
