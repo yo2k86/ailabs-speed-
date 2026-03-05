@@ -90,6 +90,79 @@
         text: "Bantingan gravitasi fokus tengah.",
         startTransform: 'scale(1.6) rotate(6deg) translate(0, -8%)',
         endTransform: 'scale(1.2) rotate(-2deg) translate(0, 4%)',
+      },
+      // === EFEK TAMBAHAN BARU ===
+      panoramicGlideRight: {
+        title: "4D Panoramic Glide Right",
+        text: "Pergerakan mulus horizontal ke kanan.",
+        startTransform: 'scale(1.3) translateX(-8%)',
+        endTransform: 'scale(1.3) translateX(8%)',
+      },
+      panoramicGlideLeft: {
+        title: "4D Panoramic Glide Left",
+        text: "Pergerakan mulus horizontal ke kiri.",
+        startTransform: 'scale(1.3) translateX(8%)',
+        endTransform: 'scale(1.3) translateX(-8%)',
+      },
+      cinematicRise: {
+        title: "4D Cinematic Rise",
+        text: "Pergerakan vertikal mulus ke atas.",
+        startTransform: 'scale(1.25) translateY(8%)',
+        endTransform: 'scale(1.25) translateY(-8%)',
+      },
+      cinematicFall: {
+        title: "4D Cinematic Fall",
+        text: "Pergerakan vertikal mulus ke bawah.",
+        startTransform: 'scale(1.25) translateY(-8%)',
+        endTransform: 'scale(1.25) translateY(8%)',
+      },
+      dutchAngleRight: {
+        title: "4D Dutch Angle Right",
+        text: "Rotasi kamera miring ke kanan dengan zoom.",
+        startTransform: 'scale(1.5) rotate(-10deg)',
+        endTransform: 'scale(1.1) rotate(4deg)',
+      },
+      dutchAngleLeft: {
+        title: "4D Dutch Angle Left",
+        text: "Rotasi kamera miring ke kiri dengan zoom.",
+        startTransform: 'scale(1.5) rotate(10deg)',
+        endTransform: 'scale(1.1) rotate(-4deg)',
+      },
+      hyperspaceDive: {
+        title: "4D Hyperspace Dive",
+        text: "Terjun cepat ke dalam dimensi.",
+        startTransform: 'scale(1.0)',
+        endTransform: 'scale(2.5)',
+      },
+      hyperspaceEscape: {
+        title: "4D Hyperspace Escape",
+        text: "Menarik diri dengan cepat dari dimensi.",
+        startTransform: 'scale(2.5)',
+        endTransform: 'scale(1.0)',
+      },
+      spatialTwist: {
+        title: "4D Spatial Twist",
+        text: "Distorsi ruang miring yang ekstrim.",
+        startTransform: 'scale(1.4) skewY(-6deg) translate(-4%, -4%)',
+        endTransform: 'scale(1.4) skewY(6deg) translate(4%, 4%)',
+      },
+      orbitSweep: {
+        title: "4D Orbit Sweep",
+        text: "Ayunan rotasi menyapu dari samping.",
+        startTransform: 'scale(1.6) rotate(-18deg) translateX(-12%)',
+        endTransform: 'scale(1.1) rotate(0deg) translateX(0%)',
+      },
+      phantomSlide: {
+        title: "4D Phantom Slide",
+        text: "Gesekan hantu dengan kemiringan horizontal.",
+        startTransform: 'scale(1.4) translateX(12%) skewX(8deg)',
+        endTransform: 'scale(1.1) translateX(-4%) skewX(0deg)',
+      },
+      echoDrop: {
+        title: "4D Echo Drop",
+        text: "Jatuh berputar menjauh dari kamera.",
+        startTransform: 'scale(2.2) rotate(12deg) translateY(5%)',
+        endTransform: 'scale(1.0) rotate(-2deg) translateY(-5%)',
       }
     };
 
@@ -107,6 +180,15 @@
         { id: 1, x: 0.1, y: 0.1, hIn: null, hOut: { dx: 0.1, dy: 0.8 } },
         { id: 2, x: 0.4, y: 0.1, hIn: { dx: -0.2, dy: -0.1 }, hOut: { dx: 0.3, dy: -0.1 } },
         { id: 3, x: 0.9, y: 0.1, hIn: { dx: -0.1, dy: 0.9 }, hOut: null }
+      ],
+      // === PRESET GRAFIK BARU ===
+      smoothGlide: [
+        { id: 1, x: 0.0, y: 0.0, hIn: null, hOut: { dx: 0.4, dy: 0 } },
+        { id: 2, x: 1.0, y: 1.0, hIn: { dx: -0.4, dy: 0 }, hOut: null }
+      ],
+      suddenBrake: [
+        { id: 1, x: 0.0, y: 0.0, hIn: null, hOut: { dx: 0.1, dy: 0.9 } },
+        { id: 2, x: 1.0, y: 1.0, hIn: { dx: -0.5, dy: 0 }, hOut: null }
       ]
     };
 
@@ -224,15 +306,20 @@
           setIsPlayingAudio(false);
           setIsPreviewing(false);
         }
+        e.target.value = ''; // FIX: Reset input agar HP tidak nge-bug saat upload file sama
       };
 
       const handleAudioUpload = async (e) => {
         const file = e.target.files[0];
         if (file) {
+          if (audioUrl) {
+              URL.revokeObjectURL(audioUrl); // FIX: Cegah kebocoran memori RAM
+          }
           setAudioFile(file);
           setAudioUrl(URL.createObjectURL(file));
           analyzeAudio(file);
         }
+        e.target.value = ''; // FIX: Reset input
       };
 
       const analyzeAudio = async (file) => {
@@ -240,7 +327,11 @@
         try {
           const arrayBuffer = await file.arrayBuffer();
           const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          
+          // FIX: Gunakan cara callback yg dibungkus Promise agar Safari iOS tidak crash
+          const audioBuffer = await new Promise((resolve, reject) => {
+              audioCtx.decodeAudioData(arrayBuffer, resolve, reject).catch(reject);
+          });
           
           const channelData = audioBuffer.getChannelData(0);
           const sampleRate = audioBuffer.sampleRate;
@@ -276,8 +367,14 @@
           
           if (peaks.length === 0 || peaks[0] > 0.2) peaks.unshift(0);
           setBeats(peaks);
+
+          if (audioCtx.state !== 'closed') {
+              await audioCtx.close();
+          }
+
         } catch (error) {
           console.error("Gagal menganalisis audio", error);
+          alert("Gagal memproses audio. File mungkin tidak didukung atau memori penuh.");
         }
         setIsAnalyzing(false);
       };
@@ -399,6 +496,30 @@
         return () => cancelAnimationFrame(animationRef.current);
       }, [isPlayingAudio, beats, mediaFiles.length]);
 
+      const safeMediaIndex = Math.max(0, Math.min(currentMediaIndex, Math.max(0, mediaFiles.length - 1)));
+      const currentEffect = promptsData[currentEffectKey] || promptsData['tesseractWarp'];
+      const activeDuration = isPreviewing ? 2.0 : currentBeatDuration;
+      const currentMedia = mediaFiles.length > 0 ? mediaFiles[safeMediaIndex] : null;
+
+      // --- PERBAIKAN: Kontrol Autoplay Video Saat Beat Masuk ---
+      useEffect(() => {
+          if (mediaFiles.length > 0 && mediaFiles[safeMediaIndex]?.type === 'video' && currentVideoRef.current) {
+              if (isPlayingAudio || isPreviewing) {
+                  try {
+                      // Amankan error DOMException jika video belum siap dimuat
+                      currentVideoRef.current.currentTime = mediaFiles[safeMediaIndex].startTime || 0;
+                  } catch (e) {
+                      console.log("Abaikan error DOMException currentTime:", e);
+                  }
+                  
+                  const playPromise = currentVideoRef.current.play();
+                  if (playPromise !== undefined) {
+                      playPromise.catch(e => console.log("Video auto-play interrupted (expected on fast transitions):", e));
+                  }
+              }
+          }
+      }, [safeMediaIndex, isPlayingAudio, isPreviewing]);
+
       const handlePreviewSingle = () => {
         if (mediaFiles.length === 0) return;
         if (isPlayingAudio) {
@@ -440,7 +561,10 @@
             }
             
             await initAudioSystem(); 
-            audioRef.current.play();
+            const playPromise = audioRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => console.log("Audio play interrupted:", e));
+            }
             setIsPlayingAudio(true);
             setTriggerAnim(false);
             setTimeout(() => setTriggerAnim(true), 50);
@@ -463,7 +587,10 @@
           }
           
           await initAudioSystem(); 
-          audioRef.current.play();
+          const playPromise = audioRef.current.play();
+          if (playPromise !== undefined) {
+              playPromise.catch(e => console.log("Audio play interrupted:", e));
+          }
           setIsPlayingAudio(true);
           setTimeout(() => setTriggerAnim(true), 50);
         }
@@ -493,7 +620,6 @@
 
             let audioTracks = [];
             
-            // Prioritas 1: Ambil stream langsung dari elemen audio
             if (typeof audioRef.current.captureStream === 'function') {
                 const aStream = audioRef.current.captureStream();
                 if (aStream) audioTracks = aStream.getAudioTracks();
@@ -502,18 +628,16 @@
                 if (aStream) audioTracks = aStream.getAudioTracks();
             }
 
-            // Prioritas 2: Fallback pakai Web Audio API
             if (audioTracks.length === 0 && audioSourceRef.current?.dest?.stream) {
                 audioTracks = audioSourceRef.current.dest.stream.getAudioTracks();
             }
 
-            // PERBAIKAN MIME TYPE: Prioritaskan MP4 yang paling kompatibel untuk WhatsApp & Windows
             const getBestMimeType = () => {
                 const types = [
-                    'video/mp4;codecs=avc1,mp4a.40.2', // H.264 & AAC (Sangat kompatibel)
-                    'video/mp4', // Standar MP4
-                    'video/webm;codecs=h264', // H.264 di dalam WebM
-                    'video/webm' // Fallback terakhir (WhatsApp tetap bisa memprosesnya)
+                    'video/mp4;codecs=avc1,mp4a.40.2', 
+                    'video/mp4', 
+                    'video/webm;codecs=h264', 
+                    'video/webm' 
                 ];
                 for (const t of types) {
                     if (MediaRecorder.isTypeSupported(t)) return t;
@@ -547,7 +671,6 @@
                 const a = document.createElement('a');
                 a.href = url;
                 
-                // Pastikan ekstensi sesuai
                 const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
                 a.download = `AiLabs_Video_${aspectRatio.replace('/', 'x')}.${ext}`;
                 
@@ -783,11 +906,6 @@
         }
       }
 
-      const safeMediaIndex = Math.max(0, Math.min(currentMediaIndex, Math.max(0, mediaFiles.length - 1)));
-      const currentEffect = promptsData[currentEffectKey] || promptsData['tesseractWarp'];
-      const activeDuration = isPreviewing ? 2.0 : currentBeatDuration;
-      const currentMedia = mediaFiles.length > 0 ? mediaFiles[safeMediaIndex] : null;
-
       return (
         <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex flex-col items-center py-8 px-4 relative">
           
@@ -853,9 +971,9 @@
             <div className="flex flex-col gap-4">
 
               <div className="flex justify-center gap-2 bg-[#121212] p-1.5 rounded-lg border border-[#333] w-fit mx-auto shadow-lg">
-                 <button onClick={() => setAspectRatio('9/16')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '9/16' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>9:16</button>
-                 <button onClick={() => setAspectRatio('16/9')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '16/9' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>16:9</button>
-                 <button onClick={() => setAspectRatio('1/1')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '1/1' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>1:1</button>
+                 <button type="button" onClick={() => setAspectRatio('9/16')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '9/16' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>9:16</button>
+                 <button type="button" onClick={() => setAspectRatio('16/9')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '16/9' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>16:9</button>
+                 <button type="button" onClick={() => setAspectRatio('1/1')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '1/1' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>1:1</button>
               </div>
 
               <div 
@@ -874,62 +992,92 @@
                 ) : (
                   <>
                     <div className="flex-1 relative overflow-hidden bg-black h-full">
-                      {currentMedia?.type === 'video' ? (
-                        <video 
-                          ref={currentVideoRef}
-                          id="current-media-element"
-                          key={`vid-${safeMediaIndex}`}
-                          src={currentMedia?.url} 
-                          autoPlay muted playsInline
-                          onLoadedMetadata={(e) => {
-                              const duration = e.target.duration;
-                              setMediaFiles(prev => {
-                                  const newFiles = [...prev];
-                                  const current = newFiles[safeMediaIndex];
-                                  if (current) {
-                                      current.duration = duration;
-                                      if (current.endTime === null || current.endTime === undefined) {
-                                          current.endTime = duration;
-                                      }
-                                  }
-                                  return newFiles;
-                              });
-                              e.target.currentTime = currentMedia?.startTime || 0;
-                          }}
-                          onTimeUpdate={(e) => {
-                              const end = currentMedia?.endTime || currentMedia?.duration || e.target.duration;
-                              if (e.target.currentTime >= end - 0.1) {
-                                  e.target.currentTime = currentMedia?.startTime || 0;
-                                  e.target.play();
-                              }
-                          }}
-                          className="absolute inset-0 w-full h-full object-cover will-change-transform"
-                          style={{
-                            transformOrigin: 'center center',
-                            transitionProperty: 'transform',
-                            transitionDuration: triggerAnim ? `${activeDuration}s` : '0s',
-                            transitionTimingFunction: triggerAnim ? timingFunctionString : 'linear',
-                            transform: triggerAnim ? currentEffect.endTransform : currentEffect.startTransform,
-                          }}
-                        />
-                      ) : (
-                        <img 
-                          id="current-media-element"
-                          key={`img-${safeMediaIndex}`}
-                          src={currentMedia?.url} 
-                          className="absolute inset-0 w-full h-full object-cover will-change-transform"
-                          style={{
-                            transformOrigin: 'center center',
-                            transitionProperty: 'transform',
-                            transitionDuration: triggerAnim ? `${activeDuration}s` : '0s',
-                            transitionTimingFunction: triggerAnim ? timingFunctionString : 'linear',
-                            transform: triggerAnim ? currentEffect.endTransform : currentEffect.startTransform,
-                          }}
-                        />
-                      )}
+                      
+                      {/* --- PERBAIKAN: Sistem Preload Multi-layer Tanpa Kedipan Hitam --- */}
+                      {mediaFiles.map((media, i) => {
+                          const isActive = i === safeMediaIndex;
+                          
+                          // Pengoptimalan: Muat hanya video saat ini, sebelumnya, dan selanjutnya agar HP tidak lambat (gambar di-load semua)
+                          const isNext = i === (safeMediaIndex + 1) % mediaFiles.length;
+                          const isPrev = i === (safeMediaIndex - 1 + mediaFiles.length) % mediaFiles.length;
+                          const shouldRender = media.type === 'image' || isActive || isNext || isPrev;
+                          
+                          if (!shouldRender) return null;
+
+                          const commonStyle = {
+                              position: 'absolute',
+                              inset: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              opacity: isActive ? 1 : 0,           // Hanya aktif yang terlihat, yang lain transparan
+                              visibility: isActive ? 'visible' : 'hidden',
+                              zIndex: isActive ? 10 : 1,           // Aktif selalu di atas
+                              transformOrigin: 'center center',
+                              transitionProperty: isActive ? 'transform' : 'none',
+                              transitionDuration: isActive && triggerAnim ? `${activeDuration}s` : '0s',
+                              transitionTimingFunction: isActive && triggerAnim ? timingFunctionString : 'linear',
+                              transform: isActive ? (triggerAnim ? currentEffect.endTransform : currentEffect.startTransform) : currentEffect.endTransform,
+                          };
+
+                          if (media.type === 'video') {
+                              return (
+                                  <video 
+                                    key={`vid-cache-${i}`}
+                                    id={isActive ? "current-media-element" : `media-${i}`}
+                                    src={media.url} 
+                                    muted playsInline
+                                    preload={isActive || isNext ? "auto" : "none"}
+                                    ref={(el) => {
+                                        if (isActive) currentVideoRef.current = el;
+                                        if (!isActive && el && !el.paused) el.pause(); // Otomatis pause video belakang layar
+                                    }}
+                                    onLoadedMetadata={(e) => {
+                                        const duration = e.target.duration;
+                                        if (!media.duration || Math.abs(media.duration - duration) > 0.1) {
+                                            setMediaFiles(prev => {
+                                                const newFiles = [...prev];
+                                                if (newFiles[i]) {
+                                                    newFiles[i].duration = duration;
+                                                    if (newFiles[i].endTime === null || newFiles[i].endTime === undefined) {
+                                                        newFiles[i].endTime = duration;
+                                                    }
+                                                }
+                                                return newFiles;
+                                            });
+                                        }
+                                        // Amankan error currentTime
+                                        try { e.target.currentTime = media.startTime || 0; } catch (err) {}
+                                    }}
+                                    onTimeUpdate={(e) => {
+                                        if (!isActive) return;
+                                        const end = media.endTime || media.duration || e.target.duration;
+                                        if (e.target.currentTime >= end - 0.1) {
+                                            try { e.target.currentTime = media.startTime || 0; } catch (err) {}
+                                            const p = e.target.play();
+                                            if (p !== undefined) p.catch(err => console.log("Loop interrupt:", err));
+                                        }
+                                    }}
+                                    className="will-change-transform"
+                                    style={commonStyle}
+                                  />
+                              );
+                          } else {
+                              return (
+                                  <img 
+                                    key={`img-cache-${i}`}
+                                    id={isActive ? "current-media-element" : `media-${i}`}
+                                    src={media.url} 
+                                    className="will-change-transform"
+                                    style={commonStyle}
+                                    alt={`media-${i}`}
+                                  />
+                              );
+                          }
+                      })}
                     </div>
 
-                    <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+                    <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
                        <span className="bg-black/50 backdrop-blur-md px-3 py-1 rounded text-xs font-bold border border-white/10 shadow-lg">
                          {safeMediaIndex + 1} / {mediaFiles.length} ({currentMedia?.type})
                        </span>
@@ -941,36 +1089,71 @@
                     </div>
 
                     {currentMedia?.type === 'video' && currentMedia?.duration > 0 && !isRecording && (
-                        <div className="absolute bottom-24 left-4 right-4 bg-black/80 border border-white/20 p-3 rounded-xl z-20 backdrop-blur-md flex flex-col gap-2 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                               <span className="flex items-center gap-1.5"><Scissors size={12} className="text-pink-500" /> Potong Start Video</span>
-                               <span className="text-pink-400 bg-pink-500/20 px-2 py-0.5 rounded border border-pink-500/30">
-                                  {Number(currentMedia.startTime || 0).toFixed(1)}s / {Number(currentMedia.duration).toFixed(1)}s
-                               </span>
+                        <div className="absolute bottom-24 left-4 right-4 bg-black/80 border border-white/20 p-3 rounded-xl z-20 backdrop-blur-md flex flex-col gap-4 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">
+                            
+                            {/* Trim Start */}
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                                   <span className="flex items-center gap-1.5"><Scissors size={12} className="text-pink-500" /> Potong Start Video</span>
+                                   <span className="text-pink-400 bg-pink-500/20 px-2 py-0.5 rounded border border-pink-500/30">
+                                      {Number(currentMedia.startTime || 0).toFixed(1)}s
+                                   </span>
+                                </div>
+                                <input 
+                                   type="range" 
+                                   min="0" 
+                                   max={Math.max(0, (currentMedia.endTime || currentMedia.duration) - 0.5)} 
+                                   step="0.1" 
+                                   value={currentMedia.startTime || 0} 
+                                   onChange={(e) => {
+                                       const time = parseFloat(e.target.value);
+                                       setMediaFiles(prev => {
+                                           const arr = [...prev];
+                                           arr[safeMediaIndex].startTime = time;
+                                           return arr;
+                                       });
+                                       if (currentVideoRef.current) {
+                                           currentVideoRef.current.currentTime = time;
+                                       }
+                                   }}
+                                   className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                                />
                             </div>
-                            <input 
-                               type="range" 
-                               min="0" 
-                               max={Math.max(0, currentMedia.duration - 0.1)} 
-                               step="0.1" 
-                               value={currentMedia.startTime || 0} 
-                               onChange={(e) => {
-                                   const time = parseFloat(e.target.value);
-                                   setMediaFiles(prev => {
-                                       const arr = [...prev];
-                                       arr[safeMediaIndex].startTime = time;
-                                       return arr;
-                                   });
-                                   if (currentVideoRef.current) {
-                                       currentVideoRef.current.currentTime = time;
-                                   }
-                               }}
-                               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
-                            />
+
+                            {/* Trim End */}
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                                   <span className="flex items-center gap-1.5"><Scissors size={12} className="text-purple-500" /> Potong End Video</span>
+                                   <span className="text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30">
+                                      {Number(currentMedia.endTime || currentMedia.duration).toFixed(1)}s / {Number(currentMedia.duration).toFixed(1)}s
+                                   </span>
+                                </div>
+                                <input 
+                                   type="range" 
+                                   min={(currentMedia.startTime || 0) + 0.5} 
+                                   max={currentMedia.duration || 1} 
+                                   step="0.1" 
+                                   value={currentMedia.endTime || currentMedia.duration} 
+                                   onChange={(e) => {
+                                       const time = parseFloat(e.target.value);
+                                       setMediaFiles(prev => {
+                                           const arr = [...prev];
+                                           arr[safeMediaIndex].endTime = time;
+                                           return arr;
+                                       });
+                                       if (currentVideoRef.current) {
+                                           currentVideoRef.current.currentTime = time;
+                                       }
+                                   }}
+                                   className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                />
+                            </div>
+
                         </div>
                     )}
 
                     <button 
+                      type="button"
                       onClick={handlePreviewSingle}
                       disabled={isRecording}
                       className={`absolute bottom-6 right-6 w-14 h-14 bg-white/90 text-black rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-transform z-10 ${isRecording ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
@@ -1054,6 +1237,7 @@
 
               {mediaFiles.length > 0 && audioUrl && (
                  <button 
+                    type="button"
                     onClick={handleDownloadVideo}
                     disabled={isRecording}
                     className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${
@@ -1084,7 +1268,7 @@
               <div>
                 <div className="flex justify-between items-center mb-2 px-1">
                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                     Speed Graph <span className="bg-purple-600/30 text-purple-400 px-2 py-0.5 rounded-full text-[9px] border border-purple-500/30">Auto-Changing</span>
+                      Speed Graph <span className="bg-purple-600/30 text-purple-400 px-2 py-0.5 rounded-full text-[9px] border border-purple-500/30">Auto-Changing</span>
                    </span>
                 </div>
 
@@ -1154,16 +1338,22 @@
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="col-span-1 flex flex-col gap-2">
-                 <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-4 cursor-pointer hover:border-purple-500 transition-colors bg-[#0f0f0f] overflow-hidden">
+                 <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-4 cursor-pointer hover:border-purple-500 transition-colors bg-[#0f0f0f] overflow-hidden relative">
                     {isAnalyzing ? (
-                      <Loader2 size={24} className="text-purple-500 animate-spin mb-2 flex-shrink-0" />
+                      <div className="flex flex-col items-center">
+                         <Loader2 size={24} className="text-purple-500 animate-spin mb-2 flex-shrink-0" />
+                         <span className="text-[9px] text-purple-400 font-bold">Mengekstrak Suara...</span>
+                      </div>
                     ) : (
-                      <Music size={24} className={audioFile ? "text-purple-500 mb-2 flex-shrink-0" : "text-slate-500 mb-2 flex-shrink-0"} />
+                      <>
+                        <Music size={24} className={audioFile ? "text-purple-500 mb-2 flex-shrink-0" : "text-slate-500 mb-2 flex-shrink-0"} />
+                        <p className="text-xs font-bold text-center truncate w-full px-2" title={audioFile ? audioFile.name : "Upload Musik atau Video"}>
+                          {audioFile ? audioFile.name : "1. Upload Audio/Video"}
+                        </p>
+                        {!audioFile && <p className="text-[9px] text-slate-500 text-center mt-1 px-1 leading-tight">Bisa pakai file video, akan diambil suaranya saja.</p>}
+                      </>
                     )}
-                    <p className="text-xs font-bold text-center truncate w-full px-2" title={audioFile ? audioFile.name : "Upload Musik"}>
-                      {audioFile ? audioFile.name : "1. Upload Musik"}
-                    </p>
-                    <input type="file" accept="audio/*" className="hidden" onChange={handleAudioUpload} />
+                    <input type="file" accept="audio/*,video/*" className="hidden" onChange={handleAudioUpload} />
                  </label>
               </div>
 
@@ -1179,13 +1369,13 @@
                     {mediaFiles.map((media, i) => (
                       <div key={i} className="relative w-16 h-20 flex-shrink-0 snap-start group" onClick={() => setCurrentMediaIndex(i)}>
                         {media.type === 'video' ? (
-                            <video src={media.url} className={`w-full h-full object-cover rounded cursor-pointer ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} />
+                            <video src={media.url} muted playsInline preload="metadata" className={`w-full h-full object-cover rounded cursor-pointer pointer-events-none ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} />
                         ) : (
-                            <img src={media.url} className={`w-full h-full object-cover rounded cursor-pointer ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} alt="thumb"/>
+                            <img src={media.url} className={`w-full h-full object-cover rounded cursor-pointer pointer-events-none ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} alt="thumb"/>
                         )}
                         {media.type === 'video' && <div className="absolute top-1 left-1 bg-blue-600/80 rounded-sm px-1"><Video size={8} /></div>}
                         <span className="absolute bottom-1 right-1 bg-black/70 text-[9px] px-1 rounded pointer-events-none">{i+1}</span>
-                        <button onClick={(e) => {e.stopPropagation(); removeMedia(i);}} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+                        <button type="button" onClick={(e) => {e.stopPropagation(); removeMedia(i);}} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-10">×</button>
                       </div>
                     ))}
                   </div>
@@ -1194,6 +1384,7 @@
 
               <div className="col-span-1 flex items-center justify-center">
                  <button 
+                    type="button"
                     onClick={() => handlePlaySequence()}
                     disabled={mediaFiles.length === 0 || !audioUrl || isRecording}
                     className={`w-full py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
