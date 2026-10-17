@@ -182,31 +182,89 @@ else{ctx.lineWidth=lineWidth;ctx.strokeStyle=st.preset==='glitch'?'#080b14':'rgb
 });ctx.restore()}
 function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 function coverDraw(media,w,h,scale=1){if(!media||media.readyState<2)return;const mw=media.videoWidth||media.width||16,mh=media.videoHeight||media.height||9;if(!mw||!mh)return;const sc=Math.max(w/mw,h/mh)*scale,ww=mw*sc,hh=mh*sc;ctx.drawImage(media,(w-ww)/2,(h-hh)/2,ww,hh)}
-function classifyBrollCue(text){const t=String(text||'').toLowerCase();if(/\b(ai|artificial intelligence|kecerdasan buatan|generative|generator|prompt|text to video|image to video|video ai|ai video|membuat video|buat video|video generator|video editing|editing video|konten ai|gambar jadi video|gambar ke video|gemini|veo|sora|runway|pika|capcut|workflow ai)\b/.test(t))return 'AI video creation';const groups=[{keys:['business','bisnis','kerja','kantor','usaha','laptop','meeting','uang','sukses','pekerjaan'],kind:'Business / workspace'},{keys:['food','makan','masak','kopi','dapur','resep','makanan'],kind:'Food / lifestyle'},{keys:['travel','jalan','liburan','kota','hotel','pantai','wisata','perjalanan'],kind:'Travel / location'},{keys:['technology','teknologi','aplikasi','software','komputer','digital','data','hp','ponsel'],kind:'Technology'},{keys:['sedih','menangis','bahagia','marah','cinta','keluarga','teman','sahabat','motivasi'],kind:'Emotion / people'},{keys:['alam','hutan','hujan','gunung','laut','bunga','pohon','lingkungan'],kind:'Nature / atmosphere'}];for(const g of groups)if(g.keys.some(k=>t.includes(k)))return g.kind;return 'Contextual detail'}
+function classifyBrollCue(text){
+ const t=String(text||'').toLowerCase();
+ // Detect the actual feature being narrated before falling back to broad topics.
+ if(/\b(b[\s-]?roll|cutaway|stock footage|footage pendukung|visual pendukung|ilustrasi visual)\b/.test(t))return 'Illustrative B-roll';
+ if(/\b(timeline|keyframe|key frame|drag.?and.?drop|upload|unggah|29 gaya|29 style|style gallery|preset|sound effect|efek suara|sfx|waveform|subtitle|caption|karaoke|word.?by.?word|kata per kata|motion graphic|motion graphics|grid neon|latar sinematik|cinematic background|panel editor|editor studio)\b/.test(t))return 'App UI / motion graphics';
+ if(/\b(ai video|video ai|artificial intelligence|kecerdasan buatan|generative video|generator video|text to video|image to video|prompt|perintah teks|gambar jadi video|gambar ke video|gemini|veo|sora|runway|pika|capcut|google flow)\b/.test(t))return 'AI video creation';
+ const groups=[
+  {keys:['business','bisnis','kerja','kantor','usaha','laptop','meeting','uang','sukses','pekerjaan','workspace'],kind:'Business / workspace'},
+  {keys:['food','makan','masak','kopi','dapur','resep','makanan','restaurant','restoran'],kind:'Food / lifestyle'},
+  {keys:['travel','jalan','liburan','kota','hotel','pantai','wisata','perjalanan','airport','bandara'],kind:'Travel / location'},
+  {keys:['technology','teknologi','aplikasi','software','komputer','digital','data','hp','ponsel','smartphone'],kind:'Technology'},
+  {keys:['sedih','menangis','bahagia','marah','cinta','keluarga','teman','sahabat','motivasi','emosi'],kind:'Emotion / people'},
+  {keys:['alam','hutan','hujan','gunung','laut','bunga','pohon','lingkungan','nature','ocean'],kind:'Nature / atmosphere'}
+ ];
+ for(const g of groups)if(g.keys.some(k=>t.includes(k)))return g.kind;
+ return 'Contextual detail';
+}
 function brollSearchQuery(kind,text){
  const t=String(text||'').toLowerCase();
- if(kind==='AI video creation'){
-  const named=[['gemini','Gemini'],['veo','Veo'],['sora','Sora'],['runway','Runway'],['pika','Pika'],['flow','Google Flow'],['capcut','CapCut'],['youtube','YouTube'],['tiktok','TikTok']];
-  const specific=named.filter(([key])=>t.includes(key)).map(([,label])=>label);
-  const concepts=[];
-  if(/prompt|perintah teks/.test(t))concepts.push('AI prompt');
-  if(/gambar|image|foto/.test(t))concepts.push('image to video');
-  if(/edit|editing|sunting/.test(t))concepts.push('video editing');
-  if(/avatar|karakter|character/.test(t))concepts.push('AI avatar');
-  if(/generat|buat|membuat|produksi/.test(t))concepts.push('AI video generator');
-  return [...new Set([...specific,...concepts,'artificial intelligence computer screen'])].slice(0,5).join(' ');
+ const has=re=>re.test(t);
+ if(kind==='Illustrative B-roll'){
+  if(has(/\b(office|kantor|studio|ruang kerja|workspace)\b/))return 'modern office workspace studio interior';
+  if(has(/\b(person|people|orang|narator|pembicara)\b/))return 'person working in modern workspace';
+  return 'modern workspace illustrative cutaway';
  }
- if(kind==='Business / workspace')return 'business office people working';
- if(kind==='Food / lifestyle')return 'food cooking kitchen';
- if(kind==='Travel / location')return 'travel city beach';
- if(kind==='Technology')return 'technology computer smartphone';
- if(kind==='Emotion / people')return /keluarga|family|orang tua|anak/.test(t)?'family people lifestyle':'people emotions friends';
- if(kind==='Nature / atmosphere')return 'nature forest ocean';
- const mappings=[[/\b(motivasi|semangat|pantang|menyerah|mimpi|sukses)\b/,'motivation success person'],[/\b(cinta|sayang|pasangan|pacar|romantis)\b/,'love couple romantic'],[/\b(keluarga|anak|ibu|ayah|orang tua)\b/,'family people'],[/\b(mobil|motor|kendaraan|jalan raya)\b/,'cars road traffic'],[/\b(olahraga|sehat|lari|fitness)\b/,'fitness sports running'],[/\b(sekolah|belajar|guru|murid)\b/,'school students learning']];
+ if(kind==='App UI / motion graphics'){
+  if(has(/\b(timeline|keyframe|key frame)\b/))return 'video editing timeline keyframes interface screen recording';
+  if(has(/\b(drag.?and.?drop|upload|unggah|import video)\b/))return 'video editor drag and drop upload media interface';
+  if(has(/\b(29 gaya|29 style|style gallery|preset|gaya animasi|pilihan gaya|typography preset)\b/))return 'animated typography effects presets gallery interface';
+  if(has(/\b(sound effect|efek suara|sfx|waveform|audio)\b/))return 'audio editing waveform sound effects interface';
+  if(has(/\b(subtitle|caption|karaoke|word.?by.?word|kata per kata|teks berjalan|highlight kata)\b/))return 'kinetic typography karaoke captions word highlight animation';
+  if(has(/\b(grid neon|neon grid|latar sinematik|cinematic background|motion graphic|motion graphics|background|latar|gradient|gradasi)\b/))return 'neon grid gradient motion graphics animated background';
+  return 'video editing software interface screen recording';
+ }
+ if(kind==='AI video creation'){
+  const named=[['gemini','Gemini'],['veo','Veo'],['sora','Sora'],['runway','Runway'],['pika','Pika'],['google flow','Google Flow'],['flow','Flow'],['capcut','CapCut']];
+  const product=named.filter(([key])=>t.includes(key)).map(([,label])=>label);
+  if(has(/\b(prompt|perintah teks|text prompt)\b/))return [...product,'AI video generation prompt typing interface'].filter(Boolean).join(' ');
+  if(has(/\b(gambar|image|foto|image to video|gambar jadi video|gambar ke video)\b/))return [...product,'AI image to video generation visual'].filter(Boolean).join(' ');
+  if(has(/\b(edit|editing|sunting|timeline)\b/))return [...product,'video editing timeline interface'].filter(Boolean).join(' ');
+  return [...product,'AI video generator interface screen recording'].filter(Boolean).join(' ');
+ }
+ if(kind==='Business / workspace'){
+  if(has(/\b(meeting|rapat|presentasi|presentation)\b/))return 'business team meeting presentation office';
+  if(has(/\b(laptop|komputer|computer|screen|layar)\b/))return 'professional working laptop office close up';
+  return 'modern office workspace people working';
+ }
+ if(kind==='Food / lifestyle'){
+  if(has(/\b(kopi|coffee|cafe|kafe)\b/))return 'coffee preparation cafe close up';
+  if(has(/\b(masak|resep|dapur|cooking|recipe)\b/))return 'cooking food preparation kitchen close up';
+  return 'food lifestyle close up';
+ }
+ if(kind==='Travel / location'){
+  if(has(/\b(pantai|beach|laut|ocean)\b/))return 'tropical beach ocean travel footage';
+  if(has(/\b(kota|city|jalan raya|traffic)\b/))return 'city street travel traffic footage';
+  return 'travel destination scenic footage';
+ }
+ if(kind==='Technology'){
+  if(has(/\b(software|aplikasi|app|interface|layar|screen)\b/))return 'software interface computer screen close up';
+  return 'modern technology computer smartphone close up';
+ }
+ if(kind==='Emotion / people'){
+  if(has(/\b(keluarga|family|orang tua|anak|ibu|ayah)\b/))return 'family lifestyle candid moment';
+  if(has(/\b(cinta|sayang|pasangan|pacar|romantis|couple)\b/))return 'romantic couple candid lifestyle';
+  return 'people expressing emotions candid lifestyle';
+ }
+ if(kind==='Nature / atmosphere'){
+  if(has(/\b(hujan|rain|badai|storm)\b/))return 'rain falling cinematic nature close up';
+  if(has(/\b(hutan|forest|pohon|tree)\b/))return 'forest trees nature cinematic footage';
+  return 'nature landscape ocean forest cinematic footage';
+ }
+ const mappings=[
+  [/\b(motivasi|semangat|pantang|menyerah|mimpi|sukses)\b/,'motivation success person'],
+  [/\b(cinta|sayang|pasangan|pacar|romantis)\b/,'love couple romantic'],
+  [/\b(keluarga|anak|ibu|ayah|orang tua)\b/,'family people lifestyle'],
+  [/\b(mobil|motor|kendaraan|jalan raya)\b/,'cars road traffic'],
+  [/\b(olahraga|sehat|lari|fitness)\b/,'fitness sports running'],
+  [/\b(sekolah|belajar|guru|murid)\b/,'school students learning']
+ ];
  for(const pair of mappings)if(pair[0].test(t))return pair[1];
  const stop=new Set(['yang','dan','dari','untuk','dengan','agar','atau','pada','dalam','tidak','bukan','akan','bisa','sudah','saja','kami','kamu','mereka','kita','saya','aku','dia','ini','itu','adalah','karena','ketika','lebih','sangat','juga','oleh','the','and','for','with','that','this','you','your','are','was','were','have','has','had','from','into','about','what','when','where','there','their','they']);
  const words=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(w=>w.length>3&&!stop.has(w));
- return [...new Set(words)].slice(0,4).join(' ')||'people lifestyle';
+ return [...new Set(words)].slice(0,5).join(' ')||'contextual detail footage';
 }
 function disposeStockBroll(){
  stockBroll.forEach(item=>{if(item.el){item.el.pause();item.el.removeAttribute('src');item.el.load();if(item.el.parentNode)item.el.parentNode.removeChild(item.el)}});
@@ -216,12 +274,21 @@ function buildSmartBrollPlan(){
  const st=settings(),step=Math.max(7,st.brollInterval),limit=Math.max(0,duration-st.brollDuration);smartBrollPlan=[];
  if(st.brollMode!=='auto')return smartBrollPlan;
  const theme=(document.getElementById('brollTheme')?.value||'').trim();
- const themeKind=theme?classifyBrollCue(theme):'';
- const themeQuery=theme?brollSearchQuery(themeKind,theme):'';
  for(let at=st.brollStart,guard=0;at<limit&&guard<40;at+=step,guard++){
-  const cue=subtitleCues.filter(c=>c.start>=at&&c.start<Math.min(limit,at+step)).sort((a,b)=>Math.abs(a.start-(at+2))-Math.abs(b.start-(at+2)))[0];
-  const text=cue?cue.text:'',kind=classifyBrollCue(text);
-  smartBrollPlan.push({start:cue?Math.max(at,cue.start):at,kind:theme?themeKind:kind,reason:theme?'Diprioritaskan berdasarkan tema utama video.':(cue?'Dipilih berdasarkan konteks caption.':'Interval seimbang; tunggu caption untuk pencarian kontekstual.'),source:'stock',cueText:text,query:theme?themeQuery:(cue?brollSearchQuery(kind,text):'')});
+  const segmentEnd=Math.min(limit,at+step);
+  const cues=subtitleCues.filter(c=>c.start>=at&&c.start<segmentEnd);
+  const text=cues.map(c=>String(c.text||'').trim()).filter(Boolean).join(' ').trim();
+  const effectiveText=[theme,text].filter(Boolean).join(' ').trim();
+  const kind=classifyBrollCue(effectiveText);
+  const query=effectiveText?brollSearchQuery(kind,effectiveText):'';
+  smartBrollPlan.push({
+   start:cues.length?Math.max(at,cues[0].start):at,
+   kind,
+   reason:theme&&text?'Dipilih dari tema video dan kalimat yang sedang diucapkan.':theme?'Dipilih dari tema utama video.':(text?'Dipilih dari konteks seluruh caption pada segmen ini.':'Tidak ada caption pada segmen ini.'),
+   source:'stock',
+   cueText:text,
+   query
+  });
  }
  syncQuickControls();return smartBrollPlan
 }
@@ -234,7 +301,7 @@ async function searchStockBroll(options={}){
  const theme=($('brollTheme')?.value||'').trim();
  if(!theme&&!subtitleCues.length){stockBrollError='Jalankan Auto Caption terlebih dahulu agar aplikasi dapat memahami isi video secara otomatis.';syncQuickControls();if(!silent)message(stockBrollError);return;}
  if(!smartBrollPlan.length)buildSmartBrollPlan();
- let queries=theme?[brollSearchQuery(classifyBrollCue(theme),theme)]:[...new Set(smartBrollPlan.map(p=>p.query).filter(Boolean))].slice(0,4);
+ let queries=[...new Set(smartBrollPlan.map(p=>p.query).filter(Boolean))];
  if(!queries.length&&captionText){
   const kind=classifyBrollCue(captionText),query=brollSearchQuery(kind,captionText);
   smartBrollPlan.forEach(p=>{p.query=query;p.cueText=captionText;p.kind=kind;p.reason='Dipilih dari teks caption.'});
@@ -256,7 +323,7 @@ async function searchStockBroll(options={}){
   const failed=settled.filter(x=>x.status==='rejected');
   const merged=[];
   for(const result of settled)if(result.status==='fulfilled')merged.push(...result.value);
-  const unique=[...new Map(merged.map(item=>[item.id,item])).values()];
+  const unique=[...new Map(merged.map(item=>[String(item.id)+'::'+String(item.query||''),item])).values()];
   if(!unique.length)throw new Error(failed.length?(failed[0].reason&&failed[0].reason.message||'Pixabay tidak bisa mencari footage.'): 'Pixabay tidak menemukan footage. Coba tema yang lebih spesifik.');
   const stopWords=new Set(['the','and','for','with','video','people','content','from','that','this','into','your','their','about','computer','screen','digital','artificial','intelligence']);
   const ranked=unique.map(item=>{
@@ -271,7 +338,14 @@ async function searchStockBroll(options={}){
   // Never insert a random stock clip: each selected clip must match at least one meaningful word from its own search query.
   const relevant=ranked.filter(item=>item.relevanceScore>=1);
   // Pixabay search is already contextual. Tags may omit valid concepts, so do not fail the whole workflow when exact tag matching returns zero.
-  const chosen=(relevant.length?relevant:ranked).slice(0,24);
+  // Keep a small set per query so clips from the first topic cannot crowd out later segments.
+  const chosen=[];
+  for(const query of queries){
+   const group=ranked.filter(item=>item.query===query);
+   if(!group.length)continue;
+   const matching=group.filter(item=>item.relevanceScore>=1);
+   chosen.push(...(matching.length?matching:group).slice(0,2));
+  }
   disposeStockBroll();
   stockBroll=chosen.map((item,index)=>{
    const el=document.createElement('video');
@@ -283,7 +357,7 @@ async function searchStockBroll(options={}){
   });
   smartBrollPlan.forEach((p,i)=>{p.stockFound=stockBroll.some(x=>x.query===p.query)||stockBroll.length>0;});
   syncQuickControls();draw(base);
-  message('B-roll siap: '+stockBroll.length+' klip Pixabay yang paling relevan dengan '+(theme?'tema video.':'caption.'));
+  message('B-roll siap: '+stockBroll.length+' klip Pixabay dipilih per topik caption; klip yang tidak cocok tidak akan menggantikan topik lain.');
  }catch(err){
   stockBrollError=err&&err.message?err.message:'Pencarian Pixabay gagal.';
   syncQuickControls();message('Pencarian B-roll gagal: '+stockBrollError);
@@ -297,10 +371,10 @@ function activeBroll(t,st){
   for(let i=0;i<smartBrollPlan.length;i++){
    const p=smartBrollPlan[i],within=t-p.start;
    if(within>=0&&within<st.brollDuration){
+    // Only use clips returned for this exact query. Never substitute an unrelated clip from another topic.
     const matching=stockBroll.filter(x=>p.query&&x.query===p.query);
-    const candidates=matching.length?matching:stockBroll;
-    if(candidates.length)return {item:candidates[i%candidates.length],within,mode:'cutaway',cycle:i,auto:false,external:true,plan:p};
-    return autoBroll?{item:autoBroll,within,mode:'overlay',cycle:i,auto:true,plan:p}:null;
+    if(matching.length)return {item:matching[i%matching.length],within,mode:'overlay',cycle:i,auto:false,external:true,plan:p};
+    return null;
    }
   }
   return null;
