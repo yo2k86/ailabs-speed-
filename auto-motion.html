@@ -126,6 +126,7 @@ async function transcribeVideo(){
   subtitleCues=cues;$('captionText').value=(result.text||cues.map(c=>c.text).join(' ')).trim();
   setCaptionMode('auto');draw(base);message('Auto Caption selesai · '+cues.length+' potongan subtitle. Preview untuk melihat hasil.');
  }catch(err){
+  if(asrPromise)asrPromise=null;
   message('Auto Caption gagal: '+(err&&err.message?err.message:String(err))+' Coba Chrome terbaru dan koneksi internet stabil.');
  }finally{
   captionBusy=false;$('captionAutoBtn').disabled=false;$('captionAutoBtn').textContent='🎙 Auto Caption';
@@ -186,7 +187,7 @@ if(video){video.pause();video.removeAttribute('src');video.load();if(video.paren
 subtitleCues=[];captionMode='manual';$('captionText').readOnly=false;syncQuickControls();
 const canvasEl=$('canvas');
 canvasEl.style.display='block';
-$('mediaStatus').textContent='Memuat video…';$('readyBadge').textContent='LOADING VIDEO';$('videoName').textContent='Memuat: '+file.name;if($('brollMode').value!=='manual')$('brollMode').value='auto';$('brollName').textContent='Auto B-roll aktif · memilih potongan lain dari video utama';$('brollHelp').textContent='Auto B-roll aktif tanpa upload tambahan: aplikasi mengambil potongan dari bagian lain video utama dan menyisipkannya sebagai close-up/PiP secara berkala. Unggah klip tambahan hanya bila ingin footage yang benar-benar berbeda.';message('File dipilih: '+file.name+' · '+(file.size/1048576).toFixed(1)+' MB. Sedang membaca video…');
+$('mediaStatus').textContent='Memuat video…';$('readyBadge').textContent='LOADING VIDEO';$('videoName').textContent='Memuat: '+file.name;if($('brollMode').value!=='manual')$('brollMode').value='auto';syncQuickControls();$('brollName').textContent='Auto B-roll aktif · memilih potongan lain dari video utama';$('brollHelp').textContent='Auto B-roll aktif tanpa upload tambahan: aplikasi mengambil potongan dari bagian lain video utama dan menyisipkannya sebagai close-up/PiP secara berkala. Unggah klip tambahan hanya bila ingin footage yang benar-benar berbeda.';message('File dipilih: '+file.name+' · '+(file.size/1048576).toFixed(1)+' MB. Sedang membaca video…');
 videoURL=URL.createObjectURL(file);
 video=document.createElement('video');
 video.muted=true;video.defaultMuted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');video.preload='auto';
