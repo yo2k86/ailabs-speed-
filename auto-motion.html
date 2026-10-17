@@ -299,7 +299,7 @@ async function searchStockBroll(options={}){
  if(!smartBrollPlan.length)buildSmartBrollPlan();
  let captionText=$('captionText').value.trim();
  const theme=($('brollTheme')?.value||'').trim();
- if(!theme&&!subtitleCues.length){stockBrollError='Jalankan Auto Caption terlebih dahulu agar aplikasi dapat memahami isi video secara otomatis.';syncQuickControls();if(!silent)message(stockBrollError);return;}
+ if(!theme&&!subtitleCues.length&&!captionText){stockBrollError='Tambahkan teks caption atau jalankan Auto Caption agar aplikasi dapat memahami isi video.';syncQuickControls();if(!silent)message(stockBrollError);return;}
  if(!smartBrollPlan.length)buildSmartBrollPlan();
  let queries=[...new Set(smartBrollPlan.map(p=>p.query).filter(Boolean))];
  if(!queries.length&&captionText){
@@ -328,7 +328,7 @@ async function searchStockBroll(options={}){
   const merged=[];
   for(const result of settled)if(result.status==='fulfilled')merged.push(...result.value);
   const unique=[...new Map(merged.map(item=>[String(item.id)+'::'+String(item.query||'')+'::'+String(item.assetType||'video'),item])).values()];
-  if(!unique.length)throw new Error(failed.length?(failed[0].reason&&failed[0].reason.message||'Pixabay tidak bisa mencari footage.'): 'Pixabay tidak menemukan footage. Coba tema yang lebih spesifik.');
+  if(!unique.length&&!smartBrollPlan.some(shouldUseUiMockup))throw new Error(failed.length?(failed[0].reason&&failed[0].reason.message||'Pixabay tidak bisa mencari footage.'): 'Pixabay tidak menemukan footage. Coba tema yang lebih spesifik.');
   const stopWords=new Set(['the','and','for','with','video','people','content','from','that','this','into','your','their','about','computer','screen','digital','artificial','intelligence']);
   const ranked=unique.map(item=>{
    const tags=String(item.tags||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
