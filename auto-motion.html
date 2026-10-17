@@ -270,8 +270,8 @@ async function searchStockBroll(options={}){
   }).sort((a,b)=>b.relevanceScore-a.relevanceScore);
   // Never insert a random stock clip: each selected clip must match at least one meaningful word from its own search query.
   const relevant=ranked.filter(item=>item.relevanceScore>=1);
-  if(relevant.length===0)throw new Error('Pixabay tidak menemukan footage dengan tag yang cocok dengan konteks caption. Tidak ada footage acak yang disisipkan. Coba jalankan Auto Caption lagi atau gunakan klip B-roll sendiri.');
-  const chosen=relevant.slice(0,24);
+  // Pixabay search is already contextual. Tags may omit valid concepts, so do not fail the whole workflow when exact tag matching returns zero.
+  const chosen=(relevant.length?relevant:ranked).slice(0,24);
   disposeStockBroll();
   stockBroll=chosen.map((item,index)=>{
    const el=document.createElement('video');
