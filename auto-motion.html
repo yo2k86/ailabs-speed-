@@ -187,7 +187,7 @@ function brollSearchQuery(kind,text){
  const t=String(text||'').toLowerCase();
  if(kind==='AI video creation'){
   const named=[['gemini','Gemini'],['veo','Veo'],['sora','Sora'],['runway','Runway'],['pika','Pika'],['flow','Google Flow'],['capcut','CapCut'],['youtube','YouTube'],['tiktok','TikTok']];
-  const specific=named.filter(([key])=>new RegExp('\\\\b'+key+'\\\\b','i').test(t)).map(([,label])=>label);
+  const specific=named.filter(([key])=>t.includes(key)).map(([,label])=>label);
   const concepts=[];
   if(/prompt|perintah teks/.test(t))concepts.push('AI prompt');
   if(/gambar|image|foto/.test(t))concepts.push('image to video');
