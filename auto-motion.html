@@ -66,7 +66,50 @@ function syncBroll(t){const st=settings(),br=activeBroll(t,st);broll.forEach(x=>
 function tick(){if(!playing)return;const t=Math.min(duration,base+(performance.now()-clock)/1000);if(t>=duration){base=duration;pause();draw(duration);return}syncMedia(video,t);syncBroll(t);draw(t);raf=requestAnimationFrame(tick)}
 function play(){if(playing){pause();return}if(base>=duration)base=0;playing=true;clock=performance.now();$('playBtn').textContent='Ⅱ Pause';$('playSmall').textContent='Ⅱ';if(video){syncMedia(video,base);video.play().catch(()=>{})}if(audio){try{audio.currentTime=base%(audio.duration||duration)}catch(e){}audio.play().catch(()=>{})}raf=requestAnimationFrame(tick)}
 function pause(){playing=false;cancelAnimationFrame(raf);if(video)video.pause();if(audio)audio.pause();broll.forEach(x=>x.el.pause());$('playBtn').textContent='▶ Preview';$('playSmall').textContent='▶'}
-function loadVideo(file){if(!file)return;pause();if(videoURL){URL.revokeObjectURL(videoURL);videoURL=null}if(video){video.pause();video.removeAttribute('src');video.load()}$('mediaStatus').textContent='Memuat video…';$('readyBadge').textContent='LOADING VIDEO';$('videoName').textContent='Memuat: '+file.name;message('Membuka video: '+file.name);videoURL=URL.createObjectURL(file);video=document.createElement('video');video.muted=true;video.defaultMuted=true;video.playsInline=true;video.setAttribute('playsinline','');video.preload='auto';video.crossOrigin='anonymous';video.onloadedmetadata=()=>{duration=Math.max(1,Math.min(60,Math.ceil(video.duration||+$('duration').value||10)));$('duration').value=String(duration);$('durationMirror').value=String([10,15,20,30,45,60].find(n=>n>=duration)||60);base=0;$('placeholder').style.display='none';$('mediaStatus').textContent='Video siap';$('readyBadge').textContent='MEDIA READY';$('videoName').textContent=file.name+' · '+Math.round(video.videoWidth)+'×'+Math.round(video.videoHeight)+' · '+(Number.isFinite(video.duration)?video.duration.toFixed(1)+' dtk':'durasi tersedia');draw(0);try{video.currentTime=0}catch(e){}message('Video dimuat. Tekan Preview untuk memutar; gambar awal akan tampil di kanvas.')};video.onloadeddata=()=>{if(video&&video.readyState>=2){$('placeholder').style.display='none';draw(base);message('Preview video berhasil dimuat: '+file.name)}};video.onseeked=()=>draw(base);video.oncanplay=()=>{draw(base)};video.onerror=()=>{const code=video.error?video.error.code:0;$('mediaStatus').textContent='Video gagal';$('readyBadge').textContent='MEDIA ERROR';message('Browser tidak dapat membaca video ini (kode '+code+'). Coba MP4 H.264/AAC, ukuran file lebih kecil, atau WebM.')};video.src=videoURL;video.load()}
+function loadVideo(file){
+if(!file){message('Belum ada file video yang dipilih.');return}
+pause();
+try{
+if(videoURL){URL.revokeObjectURL(videoURL);videoURL=null}
+if(video){video.pause();video.removeAttribute('src');video.load();if(video.parentNode)video.parentNode.removeChild(video)}
+$('mediaStatus').textContent='Memuat video…';$('readyBadge').textContent='LOADING VIDEO';$('videoName').textContent='Memuat: '+file.name;message('File dipilih: '+file.name+' · '+(file.size/1048576).toFixed(1)+' MB. Sedang membaca video…');
+videoURL=URL.createObjectURL(file);
+video=document.createElement('video');
+video.muted=true;video.defaultMuted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');video.preload='auto';
+video.style.cssText='position:fixed;width:2px;height:2px;left:-10px;top:0;opacity:0;pointer-events:none';
+document.body.appendChild(video);
+let metadataReady=false,frameReady=false;
+const showFrame=()=>{
+if(!video||video.readyState<2)return;
+frameReady=true;$('placeholder').style.display='none';$('mediaStatus').textContent='Video siap';$('readyBadge').textContent='MEDIA READY';
+try{draw(0)}catch(err){message('Video terbaca, tetapi preview gagal digambar: '+err.message);return}
+message('Preview siap: '+file.name+' · tekan Preview untuk memutar.');
+};
+video.onloadedmetadata=()=>{
+metadataReady=true;
+const seconds=Number.isFinite(video.duration)&&video.duration>0?video.duration:10;
+duration=Math.max(1,Math.min(60,Math.ceil(seconds)));
+$('duration').value=String(duration);
+$('durationMirror').value=String([10,15,20,30,45,60].find(n=>n>=duration)||60);
+base=0;$('videoName').textContent=file.name+' · '+(video.videoWidth||'?')+'×'+(video.videoHeight||'?')+' · '+seconds.toFixed(1)+' dtk';
+$('mediaStatus').textContent='Metadata terbaca';message('Metadata video terbaca; menyiapkan frame pertama…');
+try{video.currentTime=0}catch(e){}
+if(video.readyState>=2)showFrame();
+};
+video.onloadeddata=showFrame;
+video.oncanplay=showFrame;
+video.onseeked=()=>{if(metadataReady)showFrame()};
+video.onerror=()=>{
+const err=video.error,code=err?err.code:0;
+$('mediaStatus').textContent='Gagal membaca video';$('readyBadge').textContent='MEDIA ERROR';
+message('Gagal membaca file (kode '+code+'). Pilih video MP4 H.264, atau coba simpan ulang video lalu pilih kembali.');
+};
+video.src=videoURL;video.load();
+}catch(err){
+$('mediaStatus').textContent='Gagal memuat';$('readyBadge').textContent='MEDIA ERROR';
+message('Kesalahan saat membuka file: '+(err&&err.message?err.message:String(err)));
+}
+}
 function loadBroll(files){if(!files||!files.length)return;broll.forEach(x=>{x.el.pause();URL.revokeObjectURL(x.url)});broll=[];Array.from(files).forEach(file=>{const url=URL.createObjectURL(file),el=document.createElement('video');el.src=url;el.muted=true;el.playsInline=true;el.preload='auto';broll.push({file,url,el})});$('brollName').textContent=broll.length+' klip dipilih: '+Array.from(files).map(f=>f.name).slice(0,2).join(', ')+(files.length>2?'…':'');$('brollMode').value='overlay';message('B-roll siap. Atur interval dan durasi untuk menyisipkan klip otomatis.');draw(base)}
 function loadAudio(file){if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);audio=new Audio(audioURL);audio.preload='auto';$('audioName').textContent=file.name;message('Audio ditambahkan. Audio akan dicoba ikut dalam ekspor.')}
 function setDuration(){duration=+$('duration').value;$('durationMirror').value=String(duration);base=Math.min(base,duration);draw(base)}
