@@ -116,7 +116,7 @@ async function captureVideoAudio(url){
 function buildCaptionCues(result){
  const words=(result.chunks||[]).filter(c=>c&&c.text&&Array.isArray(c.timestamp)&&Number.isFinite(c.timestamp[0])).map(c=>({text:c.text.trim(),start:Math.max(0,c.timestamp[0]),end:Number.isFinite(c.timestamp[1])?c.timestamp[1]:c.timestamp[0]+.45})).filter(c=>c.text&&c.end>c.start);
  const cues=[];let current=[];
- const flush=()=>{if(!current.length)return;cues.push({start:current[0].start,end:Math.max(current[0].start+.25,current[current.length-1].end),text:current.map(x=>x.text).join(' ').replace(/\\s+/g,' ').trim()});current=[]};
+ const flush=()=>{if(!current.length)return;cues.push({start:current[0].start,end:Math.max(current[0].start+.25,current[current.length-1].end),text:current.map(x=>x.text).join(' ').replace(/\s+/g,' ').trim()});current=[]};
  for(const word of words){current.push(word);const span=word.end-current[0].start;if(current.length>=5||span>=2.4||/[.!?。！？]$/.test(word.text))flush()}
  flush();return cues;
 }
@@ -241,8 +241,8 @@ function brollSearchQuery(kind,text){
  };
  const rules=[
   [/\b(29 gaya|18 gaya|11 gaya|gaya video|style preset|preset|template video|pilihan gaya)\b/,'animated video style presets typography effects gallery'],
-  [/\b(ngedit video|edit video|editing video|sunting video|video editing|editor video|timeline|keyframe)\b/,'video editing timeline workflow editor interface'],
   [/\b(3 jam|tiga jam|lama mengedit|waktu edit|hemat waktu|editing time|per video)\b/,'video editor timeline workflow fast editing time lapse'],
+  [/\b(ngedit video|edit video|editing video|sunting video|video editing|editor video|timeline|keyframe)\b/,'video editing timeline workflow editor interface'],
   [/\b(stop scroll|scroll|reels|shorts|tiktok|instagram|facebook)\b/,'vertical social media video creator smartphone scrolling feed'],
   [/\b(zoom in|zoom out|zoom|perbesar|memperbesar|close up)\b/,'camera zoom in out close up video editing effect'],
   [/\b(transisi|transition|slide effect|geser layar|pindah adegan)\b/,'video transition slide zoom motion editing effect'],
