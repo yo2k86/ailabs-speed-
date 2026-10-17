@@ -72,18 +72,32 @@ pause();
 try{
 if(videoURL){URL.revokeObjectURL(videoURL);videoURL=null}
 if(video){video.pause();video.removeAttribute('src');video.load();if(video.parentNode)video.parentNode.removeChild(video)}
+const canvasEl=$('canvas');
+canvasEl.style.display='block';
 $('mediaStatus').textContent='Memuat video…';$('readyBadge').textContent='LOADING VIDEO';$('videoName').textContent='Memuat: '+file.name;message('File dipilih: '+file.name+' · '+(file.size/1048576).toFixed(1)+' MB. Sedang membaca video…');
 videoURL=URL.createObjectURL(file);
 video=document.createElement('video');
 video.muted=true;video.defaultMuted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');video.preload='auto';
-video.style.cssText='position:fixed;width:2px;height:2px;left:-10px;top:0;opacity:0;pointer-events:none';
-document.body.appendChild(video);
-let metadataReady=false,frameReady=false;
+video.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0.001;z-index:0;pointer-events:none;background:#07090e';
+canvasEl.style.position='relative';canvasEl.style.zIndex='1';
+$('canvas').parentElement.insertBefore(video,canvasEl);
+let metadataReady=false,frameReady=false,usingNativeFallback=false;
 const showFrame=()=>{
-if(!video||video.readyState<2)return;
-frameReady=true;$('placeholder').style.display='none';$('mediaStatus').textContent='Video siap';$('readyBadge').textContent='MEDIA READY';
-try{draw(0)}catch(err){message('Video terbaca, tetapi preview gagal digambar: '+err.message);return}
+if(!video||video.readyState<2||frameReady)return;
+frameReady=true;
+$('placeholder').style.display='none';
+try{
+draw(0);
+$('mediaStatus').textContent='Video siap';$('readyBadge').textContent='MEDIA READY';
 message('Preview siap: '+file.name+' · tekan Preview untuk memutar.');
+}catch(err){
+usingNativeFallback=true;
+canvasEl.style.display='none';
+video.style.opacity='1';video.style.zIndex='3';video.style.pointerEvents='auto';video.controls=true;
+$('mediaStatus').textContent='Preview native';
+$('readyBadge').textContent='NATIVE VIDEO';
+message('Video bisa dibuka, tetapi preview kanvas gagal: '+(err&&err.message?err.message:String(err))+'. Video ditampilkan langsung sebagai cadangan.');
+}
 };
 video.onloadedmetadata=()=>{
 metadataReady=true;
@@ -98,11 +112,11 @@ if(video.readyState>=2)showFrame();
 };
 video.onloadeddata=showFrame;
 video.oncanplay=showFrame;
-video.onseeked=()=>{if(metadataReady)showFrame()};
+video.onseeked=()=>{if(metadataReady&&!frameReady)showFrame()};
 video.onerror=()=>{
 const err=video.error,code=err?err.code:0;
 $('mediaStatus').textContent='Gagal membaca video';$('readyBadge').textContent='MEDIA ERROR';
-message('Gagal membaca file (kode '+code+'). Pilih video MP4 H.264, atau coba simpan ulang video lalu pilih kembali.');
+message('Browser gagal membaca video (kode '+code+'). Jika format HEVC/H.265, ekspor ulang sebagai MP4 H.264 lalu pilih kembali.');
 };
 video.src=videoURL;video.load();
 }catch(err){
@@ -114,7 +128,7 @@ function loadBroll(files){if(!files||!files.length)return;broll.forEach(x=>{x.el
 function loadAudio(file){if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);audio=new Audio(audioURL);audio.preload='auto';$('audioName').textContent=file.name;message('Audio ditambahkan. Audio akan dicoba ikut dalam ekspor.')}
 function setDuration(){duration=+$('duration').value;$('durationMirror').value=String(duration);base=Math.min(base,duration);draw(base)}
 async function exportVideo(){if(exporting)return;if(!window.MediaRecorder||!canvas.captureStream){message('Browser ini belum mendukung export WebM. Coba Chrome terbaru.');return}if(!video){message('Upload video utama dulu sebelum export.');return}exporting=true;pause();const oldW=canvas.width,oldH=canvas.height,oldBase=base,oldDuration=duration,r=$('ratio').value,res=+$('resolution').value,fps=+$('fps').value;let w,h;if(r==='16:9'){w=res;h=Math.round(res*9/16)}else if(r==='1:1'){w=h=res}else{h=res;w=Math.round(res*9/16)}canvas.width=w;canvas.height=h;draw(0);let stream,ac;const chunks=[];try{stream=canvas.captureStream(fps);if(audio){try{ac=new(window.AudioContext||window.webkitAudioContext)();const src=ac.createMediaElementSource(audio),dest=ac.createMediaStreamDestination();src.connect(dest);dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));await ac.resume()}catch(e){message('Render lanjut; audio capture tidak tersedia di browser ini.')}}const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];const mime=types.find(x=>MediaRecorder.isTypeSupported(x))||'';const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:res>=1080?6500000:3500000}:undefined);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};const done=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=e=>reject(e.error||new Error('Recorder error'))});rec.start(250);$('exportBtn').disabled=$('exportSide').disabled=true;$('exportBtn').textContent='● Rendering…';if(video){video.currentTime=0;await video.play().catch(()=>{})}if(audio){audio.currentTime=0;await audio.play().catch(()=>{})}const start=performance.now();await new Promise(resolve=>{function frame(){const elapsed=(performance.now()-start)/1000,t=Math.min(oldDuration,elapsed);syncMedia(video,t);syncBroll(t);draw(t);message('Rendering '+Math.round(Math.min(100,elapsed/oldDuration*100))+'% · '+fmt(t)+' / '+fmt(oldDuration));if(elapsed>=oldDuration){resolve();return}requestAnimationFrame(frame)}requestAnimationFrame(frame)});if(video)video.pause();if(audio)audio.pause();broll.forEach(x=>x.el.pause());rec.stop();await done;const blob=new Blob(chunks,{type:rec.mimeType||'video/webm'});if(blob.size){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ailabs-auto-motion-'+Date.now()+'.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);message('Export selesai · '+(blob.size/1048576).toFixed(1)+' MB · WebM')}else message('File export kosong. Coba 720p / 30 FPS.')}catch(e){message('Export gagal: '+(e.message||'unknown error'))}finally{if(video)video.pause();if(audio)audio.pause();broll.forEach(x=>x.el.pause());if(ac)await ac.close().catch(()=>{});if(stream)stream.getTracks().forEach(t=>t.stop());canvas.width=oldW;canvas.height=oldH;duration=oldDuration;base=oldBase;draw(base);exporting=false;$('exportBtn').disabled=$('exportSide').disabled=false;$('exportBtn').textContent='⇩ Export WebM'}}
-$('videoFile').onchange=e=>loadVideo(e.target.files[0]);$('brollFiles').onchange=e=>loadBroll(e.target.files);$('audioFile').onchange=e=>loadAudio(e.target.files[0]);$('playBtn').onclick=$('playSmall').onclick=()=>playing?pause():play();$('exportBtn').onclick=$('exportSide').onclick=exportVideo;$('backBtn').onclick=()=>{pause();base=Math.max(0,base-1);syncMedia(video,base);draw(base)};$('forwardBtn').onclick=()=>{pause();base=Math.min(duration,base+1);syncMedia(video,base);draw(base)};$('duration').onchange=setDuration;$('durationMirror').onchange=e=>{$('duration').value=e.target.value;setDuration()};$('ratio').onchange=resize;
+$('videoFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadVideo(f)};$('brollFiles').onchange=e=>{const f=e.target.files;e.target.value='';loadBroll(f)};$('audioFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadAudio(f)};$('playBtn').onclick=$('playSmall').onclick=()=>playing?pause():play();$('exportBtn').onclick=$('exportSide').onclick=exportVideo;$('backBtn').onclick=()=>{pause();base=Math.max(0,base-1);syncMedia(video,base);draw(base)};$('forwardBtn').onclick=()=>{pause();base=Math.min(duration,base+1);syncMedia(video,base);draw(base)};$('duration').onchange=setDuration;$('durationMirror').onchange=e=>{$('duration').value=e.target.value;setDuration()};$('ratio').onchange=resize;
 ['videoTrack','captionTrack','brollTrack'].forEach(id=>$(id).addEventListener('click',e=>{pause();const r=e.currentTarget.getBoundingClientRect();base=Math.max(0,Math.min(duration,(e.clientX-r.left)/r.width*duration));syncMedia(video,base);draw(base)}));
 ['captionText','fontSize','textY','textColor','textAnim','captionStart','bgStyle','bgIntensity','bgOpacity','brollMode','brollStart','brollInterval','brollDuration','brollSize'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='fontSize')$('fontVal').textContent=$('fontSize').value+' px';if(id==='textY')$('textYVal').textContent=$('textY').value+'%';if(id==='bgIntensity')$('bgIntensityVal').textContent=$('bgIntensity').value+'%';if(id==='bgOpacity')$('bgOpacityVal').textContent=$('bgOpacity').value+'%';draw(base)}));
 document.querySelectorAll('[data-caption]').forEach(b=>b.onclick=()=>{captionPreset=b.dataset.caption;document.querySelectorAll('[data-caption]').forEach(x=>x.classList.toggle('active',x===b));draw(base)});
