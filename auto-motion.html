@@ -468,7 +468,6 @@ async function searchStockBroll(options={}){
   const ranked=unique.map(item=>{
    const tags=String(item.tags||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
    const itemQuery=String(item.query||queries[0]||'').toLowerCase();
-   const queryWords=[...new Set(itemQuery.split(/[^a-z0-9]+/).filter(w=>w.length>2&&!stopWords.has(w)))];
    const tagWords=new Set(tags.split(/\s+/).filter(Boolean));
    const aliases=[
     ['edit','editing','editor','timeline','keyframe'],
