@@ -45,6 +45,7 @@ button:hover,.filepick:hover{border-color:#c8f34a}
 (()=>{'use strict';
 const $=id=>document.getElementById(id),canvas=$('canvas'),ctx=canvas.getContext('2d');
 let video=null,audio=null,broll=[],stockBroll=[],stockBrollBusy=false,stockBrollError='',videoURL=null,audioURL=null,autoBroll=null,autoBrollURL=null,playing=false,raf=0,clock=0,base=0,duration=10,exporting=false,captionMode='manual',subtitleCues=[],captionBusy=false,asrPromise=null,smartBrollPlan=[],videoVisualAnalysis=[],videoVisualAnalysisForURL=null,videoVisualAnalysisBusy=false,videoVisualAnalysisError='',visionPromise=null;
+let previewSfxContext=null,previewSfxEvents=[],previewSfxIndex=0,previewSfxLastTime=0;
 const captionNames={viral:'VIRAL BOLD',highlight:'WORD HIGHLIGHT',karaoke:'KARAOKE',clean:'SUBTITLE CLEAN',neon:'NEON GLOW',cinema:'CINEMATIC',typewriter:'TYPEWRITER',bounce:'POP BOUNCE',glitch:'GLITCH',depth:'3D DEPTH',comic:'COMIC IMPACT',minimal:'MINIMAL WHITE',gold:'LUXURY GOLD',gradient:'GRADIENT TEXT',box:'BOX CAPTION',split:'SPLIT LINES',kinetic:'KINETIC TYPE',story:'SOCIAL STORY'};
 let captionPreset='viral';
 const settings=()=>({text:$('captionText').value.trim(),font:+$('fontSize').value,y:+$('textY').value/100,color:$('textColor').value,anim:$('textAnim').value,start:Math.max(0,+$('captionStart').value||0),preset:captionPreset,bg:$('bgStyle').value,bgI:+$('bgIntensity').value/100,bgO:+$('bgOpacity').value/100,brollMode:$('brollMode').value,brollStart:Math.max(0,+$('brollStart').value||0),brollInterval:Math.max(2,+$('brollInterval').value||5),brollDuration:Math.max(1,+$('brollDuration').value||2),brollSize:+$('brollSize').value/100,ratio:$('ratio').value});
@@ -210,7 +211,7 @@ else if(st.preset==='minimal'||st.preset==='clean'){ctx.fillStyle=st.color;ctx.s
 else{ctx.lineWidth=lineWidth;ctx.strokeStyle=st.preset==='glitch'?'#080b14':'rgba(0,0,0,.9)';ctx.strokeText(line,0,yy);ctx.fillStyle=st.color;ctx.shadowColor=st.preset==='viral'?'#000':'transparent';ctx.shadowBlur=st.preset==='viral'?12:0;ctx.fillText(line,0,yy)}
 });ctx.restore()}
 function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
-function coverDraw(media,w,h,scale=1){if(!media)return;if(('naturalWidth'in media)&&(!media.complete||!media.naturalWidth))return;if(('readyState'in media)&&media.readyState<2)return;const mw=media.videoWidth||media.naturalWidth||media.width||16,mh=media.videoHeight||media.naturalHeight||media.height||9;if(!mw||!mh)return;const sc=Math.max(w/mw,h/mh)*scale,ww=mw*sc,hh=mh*sc;ctx.drawImage(media,(w-ww)/2,(h-hh)/2,ww,hh)}
+function coverDraw(media,w,h,scale=1,offsetX=0,offsetY=0){if(!media)return;if(('naturalWidth'in media)&&(!media.complete||!media.naturalWidth))return;if(('readyState'in media)&&media.readyState<2)return;const mw=media.videoWidth||media.naturalWidth||media.width||16,mh=media.videoHeight||media.naturalHeight||media.height||9;if(!mw||!mh)return;const sc=Math.max(w/mw,h/mh)*scale,ww=mw*sc,hh=mh*sc;ctx.drawImage(media,(w-ww)/2+offsetX,(h-hh)/2+offsetY,ww,hh)}
 function classifyBrollCue(text){
  const t=String(text||'').toLowerCase();
  // Detect the actual feature being narrated before falling back to broad topics.
@@ -397,7 +398,8 @@ function buildSmartBrollPlan(){
   const visual=nearestVideoVisualAnalysis(at+Math.min(st.brollDuration/2,1.2));
   const visualText=visual?String(visual.description||'').trim():'';
   const effectiveText=[theme,text,visualText].filter(Boolean).join(' ').trim();
-  const kind=classifyBrollCue([text,visualText,theme].filter(Boolean).join(' '));
+  const classifyText=[text,theme].filter(Boolean).join(' ').trim()||(visualText||'');
+  const kind=classifyBrollCue(classifyText);
   const query=effectiveText?brollSearchQuery(kind,effectiveText):'';
   const summary=[text?'Narasi: '+text:'',visualText?'Visual: '+visualText:'',theme?'Tema: '+theme:''].filter(Boolean);
   smartBrollPlan.push({
@@ -654,8 +656,117 @@ function activeBroll(t,st){
  return null;
 }
 
-function draw(t){const st=settings(),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);if(video&&video.readyState>=2){const p=Math.min(1,t/Math.max(1,duration));const z=1+.05*p;coverDraw(video,w,h,z)}else{const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#10182b');g.addColorStop(.5,'#24164b');g.addColorStop(1,'#072b37');ctx.fillStyle=g;ctx.fillRect(0,0,w,h)}
-drawBackground(t,w,h,st);
+function autoEditCueAt(t){
+ if(!subtitleCues.length)return null;
+ return subtitleCues.find(c=>t>=Number(c.start||0)&&t<Number(c.end||0))||null;
+}
+function getAutoCameraMotion(t,w,h){
+ const st=settings();
+ if(st.brollMode!=='auto')return {scale:1+.05*Math.min(1,t/Math.max(1,duration)),x:0,y:0,punch:0,cue:null};
+ const cue=autoEditCueAt(t),text=String(cue&&cue.text||'').toLowerCase();
+ const phase=((t%4.6)/4.6)*Math.PI*2;
+ let scale=1.035+.025*(.5-.5*Math.cos(phase));
+ let x=Math.sin(t*.37)*w*.009;
+ let y=Math.cos(t*.29)*h*.006;
+ let punch=0;
+ if(cue&&/\b(stop|salah besar|penting|ingat|rahasia|jangan|perhatikan|pertama|ternyata|kesalahan|hasilnya|kuncinya|wajib|berhenti)\b/.test(text)){
+  const age=Math.max(0,t-Number(cue.start||0));
+  if(age<.12)punch=.11*(age/.12);
+  else if(age<.72)punch=.11*(1-(age-.12)/.60);
+  punch=Math.max(0,punch);
+  scale+=punch;
+  x+=Math.sin(t*8)*w*.006*punch/.11;
+ }
+ return {scale,x,y,punch,cue};
+}
+function contextualBackgroundSettings(t,st){
+ if(st.bg!=='auto'||st.brollMode!=='auto')return st;
+ const cue=autoEditCueAt(t),text=String(cue&&cue.text||'').toLowerCase();
+ let bg;
+ if(/\b(timeline|keyframe|edit|editing|aplikasi|software|ai|data|angka|fitur|caption|subtitle|audio|sfx|transisi|animasi|flow|gemini|veo|sora)\b/.test(text))bg='grid';
+ else if(/\b(sukses|berhasil|hasil|uang|bisnis|jualan|marketing|growth|meningkat|persen|produktivitas)\b/.test(text))bg='particles';
+ else if(/\b(mindset|hidup|inspirasi|motivasi|pikiran|tenang|fokus|cerita|pengalaman)\b/.test(text))bg='waves';
+ else if(/\b(stop|salah besar|penting|jangan|perhatikan|rahasia|wajib|kesalahan)\b/.test(text))bg='slashes';
+ else bg=['lines','rings','waves','particles'][Math.floor(Math.max(0,t)/6.5)%4];
+ return {...st,bg};
+}
+function drawAutoMotionAccent(t,w,h,motion){
+ if(!motion||motion.punch<=.002)return;
+ ctx.save();
+ const g=ctx.createLinearGradient(0,0,w,0);
+ g.addColorStop(0,'rgba(77,244,255,0)');
+ g.addColorStop(.5,'rgba(77,244,255,'+(motion.punch*.40)+')');
+ g.addColorStop(1,'rgba(77,244,255,0)');
+ ctx.globalAlpha=Math.min(.32,motion.punch*2.3);
+ ctx.fillStyle=g;
+ const y=(t*190)%(h*.92);
+ ctx.fillRect(0,y,w,Math.max(2,h*.003));
+ ctx.restore();
+}
+function buildAutoSfxEvents(){
+ if(settings().brollMode!=='auto')return [];
+ const events=[];
+ smartBrollPlan.forEach((p,i)=>{
+  if(p&&Number.isFinite(Number(p.start))&&(p.query||shouldUseUiMockup(p)))events.push({time:Math.max(0,Number(p.start)),type:'whoosh',key:'broll-'+i});
+ });
+ subtitleCues.forEach((c,i)=>{
+  const t=String(c.text||'').toLowerCase();
+  if(/\b(stop|salah besar|penting|ingat|rahasia|jangan|perhatikan|ternyata|kesalahan|kuncinya|wajib)\b/.test(t)){
+   events.push({time:Math.max(0,Number(c.start)||0),type:'impact',key:'emphasis-'+i});
+  }else if(i>0&&i%5===0){
+   events.push({time:Math.max(0,Number(c.start)||0),type:'tick',key:'caption-'+i});
+  }
+ });
+ events.sort((a,b)=>a.time-b.time);
+ return events.filter((e,i)=>i===0||e.time-events[i-1].time>.09);
+}
+function triggerAutoSfx(type,audioCtx,output){
+ if(!audioCtx||!output)return;
+ try{
+  const now=audioCtx.currentTime+.008;
+  if(type==='whoosh'){
+   const len=Math.max(1,Math.floor(audioCtx.sampleRate*.24));
+   const buffer=audioCtx.createBuffer(1,len,audioCtx.sampleRate),data=buffer.getChannelData(0);
+   for(let i=0;i<len;i++){const p=i/len;data[i]=(Math.random()*2-1)*Math.sin(Math.PI*p)*(1-p*.35);}
+   const noise=audioCtx.createBufferSource(),filter=audioCtx.createBiquadFilter(),gain=audioCtx.createGain();
+   noise.buffer=buffer;filter.type='bandpass';filter.frequency.setValueAtTime(1550,now);filter.frequency.exponentialRampToValueAtTime(350,now+.22);filter.Q.value=.65;
+   gain.gain.setValueAtTime(.0001,now);gain.gain.linearRampToValueAtTime(.11,now+.055);gain.gain.exponentialRampToValueAtTime(.0001,now+.24);
+   noise.connect(filter);filter.connect(gain);gain.connect(output);noise.start(now);noise.stop(now+.25);
+  }else{
+   const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+   const isImpact=type==='impact',duration=isImpact?.22:.075;
+   osc.type=isImpact?'triangle':'sine';
+   osc.frequency.setValueAtTime(isImpact?185:980,now);
+   osc.frequency.exponentialRampToValueAtTime(isImpact?58:640,now+duration);
+   gain.gain.setValueAtTime(.0001,now);gain.gain.linearRampToValueAtTime(isImpact?.17:.055,now+.008);
+   gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
+   osc.connect(gain);gain.connect(output);osc.start(now);osc.stop(now+duration+.015);
+  }
+ }catch(e){}
+}
+function scheduleAutoSfx(prev,t,events,index,audioCtx,output){
+ if(!audioCtx||!output||t<prev)return index;
+ while(index<events.length&&events[index].time<=t){
+  if(events[index].time>prev)triggerAutoSfx(events[index].type,audioCtx,output);
+  index++;
+ }
+ return index;
+}
+function initPreviewSfx(){
+ try{
+  const AudioCtx=window.AudioContext||window.webkitAudioContext;
+  if(!AudioCtx)return;
+  if(!previewSfxContext)previewSfxContext=new AudioCtx();
+  previewSfxContext.resume().catch(()=>{});
+  previewSfxEvents=buildAutoSfxEvents();
+  previewSfxIndex=0;
+  while(previewSfxIndex<previewSfxEvents.length&&previewSfxEvents[previewSfxIndex].time<=base)previewSfxIndex++;
+  previewSfxLastTime=base;
+ }catch(e){}
+}
+function draw(t){const st=settings(),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);let motion=null;if(video&&video.readyState>=2){motion=getAutoCameraMotion(t,w,h);coverDraw(video,w,h,motion.scale,motion.x,motion.y)}else{const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#10182b');g.addColorStop(.5,'#24164b');g.addColorStop(1,'#072b37');ctx.fillStyle=g;ctx.fillRect(0,0,w,h)}
+drawBackground(t,w,h,contextualBackgroundSettings(t,st));
+if(motion)drawAutoMotionAccent(t,w,h,motion);
 const br=activeBroll(t,st);if(br&&br.mockup){drawBrollMockup(t,w,h,br.plan,br.within,st)}else if(br&&br.item&&br.item.el&&(br.item.assetType==='image'?(br.item.el.complete&&br.item.el.naturalWidth>0):br.item.el.readyState>=2)){const m=br.item.el;const enter=Math.min(1,br.within/.28,Math.max(.05,(st.brollDuration-br.within)/.22));const ease=1-Math.pow(1-Math.max(0,enter),3);ctx.save();if(br.mode==='cutaway'){ctx.fillStyle='#05070b';ctx.fillRect(0,0,w,h);ctx.globalAlpha=.72+.28*ease;coverDraw(m,w,h,1.02+.035*Math.sin(br.within*2))}else{const bw=w*st.brollSize,bh=h*st.brollSize*.62;const slide=(1-ease)*bw*.22;const bx=w-bw-w*.05-slide,by=h*.08+(1-ease)*h*.025;ctx.globalAlpha=.92+.08*ease;ctx.shadowColor='#000';ctx.shadowBlur=w*.035;ctx.fillStyle='#06080d';roundRect(ctx,bx-5,by-5,bw+10,bh+10,Math.max(12,w*.018));ctx.fill();ctx.shadowBlur=0;ctx.save();ctx.beginPath();roundRect(ctx,bx,by,bw,bh,Math.max(10,w*.014));ctx.clip();const mw=m.videoWidth||m.naturalWidth||m.width||16,mh=m.videoHeight||m.naturalHeight||m.height||9,sc=Math.max(bw/mw,bh/mh)*(1.03+.045*ease);ctx.drawImage(m,(bw-mw*sc)/2+bx,(bh-mh*sc)/2+by,mw*sc,mh*sc);ctx.restore();const pulse=.65+.35*Math.sin(br.within*8);ctx.strokeStyle=br.auto?'#6fffe0':'#ffffff';ctx.globalAlpha=.75*pulse;ctx.lineWidth=Math.max(3,w*.006);roundRect(ctx,bx,by,bw,bh,Math.max(10,w*.014));ctx.stroke();ctx.globalAlpha=.9;const tag=br.external?'PIXABAY B-ROLL':'B-ROLL';ctx.font='900 '+Math.max(16,w*.025)+'px system-ui,sans-serif';const tw=ctx.measureText(tag).width+Math.max(18,w*.03),th=Math.max(28,w*.045);ctx.fillStyle=br.auto?'#087f73':'#5030b8';roundRect(ctx,bx+Math.max(8,w*.012),by+Math.max(8,w*.012),tw,th,th*.25);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(tag,bx+Math.max(17,w*.024),by+Math.max(8,w*.012)+th/2)}ctx.restore()}
 drawCaption(t,w,h,st);updateUI(t)}
 function syncMedia(el,t){if(!el||!Number.isFinite(el.duration)||el.duration<=0)return;const target=Math.min(Math.max(0,el.duration-.04),t%el.duration);if(Math.abs(el.currentTime-target)>.22){try{el.currentTime=target}catch(e){}}}
@@ -676,8 +787,8 @@ function syncBroll(t){
  broll.forEach(x=>{if(br&&!br.auto&&!br.external&&x===br.item){if(x.el.paused)x.el.play().catch(()=>{});syncMedia(x.el,br.within)}else if(!x.el.paused)x.el.pause()});
  stockBroll.forEach(x=>{if(x.assetType==='image')return;if(br&&br.external&&x===br.item)return;if(!x.el.paused)x.el.pause()});
 }
-function tick(){if(!playing)return;const t=Math.min(duration,base+(performance.now()-clock)/1000);if(t>=duration){base=duration;pause();draw(duration);return}syncMedia(video,t);syncBroll(t);draw(t);raf=requestAnimationFrame(tick)}
-function play(){if(playing){pause();return}if(base>=duration)base=0;playing=true;clock=performance.now();$('playBtn').textContent='Ⅱ Pause';$('playSmall').textContent='Ⅱ';if(video){video.muted=false;video.defaultMuted=false;syncMedia(video,base);video.play().catch(()=>{})}if(audio){try{audio.currentTime=base%(audio.duration||duration)}catch(e){}audio.play().catch(()=>{})}raf=requestAnimationFrame(tick)}
+function tick(){if(!playing)return;const t=Math.min(duration,base+(performance.now()-clock)/1000);if(t>=duration){base=duration;pause();draw(duration);return}syncMedia(video,t);syncBroll(t);if(previewSfxContext&&settings().brollMode==='auto'){previewSfxIndex=scheduleAutoSfx(previewSfxLastTime,t,previewSfxEvents,previewSfxIndex,previewSfxContext,previewSfxContext.destination);previewSfxLastTime=t}draw(t);raf=requestAnimationFrame(tick)}
+function play(){if(playing){pause();return}if(base>=duration)base=0;initPreviewSfx();playing=true;clock=performance.now();$('playBtn').textContent='Ⅱ Pause';$('playSmall').textContent='Ⅱ';if(video){video.muted=false;video.defaultMuted=false;syncMedia(video,base);video.play().catch(()=>{})}if(audio){try{audio.currentTime=base%(audio.duration||duration)}catch(e){}audio.play().catch(()=>{})}raf=requestAnimationFrame(tick)}
 function pause(){playing=false;cancelAnimationFrame(raf);if(video){video.pause();video.muted=true;video.defaultMuted=true;}if(audio)audio.pause();if(autoBroll)autoBroll.el.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>{if(x.assetType!=='image'&&x.el&&typeof x.el.pause==='function')x.el.pause()});$('playBtn').textContent='▶ Preview';$('playSmall').textContent='▶'}
 function loadVideo(file){
 if(!file){message('Belum ada file video yang dipilih.');return}
@@ -744,7 +855,7 @@ message('Kesalahan saat membuka file: '+(err&&err.message?err.message:String(err
 function loadBroll(files){if(!files||!files.length)return;broll.forEach(x=>{x.el.pause();URL.revokeObjectURL(x.url)});broll=[];Array.from(files).forEach(file=>{const url=URL.createObjectURL(file),el=document.createElement('video');el.src=url;el.muted=true;el.playsInline=true;el.preload='auto';broll.push({file,url,el})});$('brollName').textContent=broll.length+' klip manual: '+Array.from(files).map(f=>f.name).slice(0,2).join(', ')+(files.length>2?'…':'');$('brollMode').value='manual';syncQuickControls();message('Mode Manual aktif. Klip B-roll unggahan akan dipakai.');draw(base)}
 function loadAudio(file){if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);audio=new Audio(audioURL);audio.preload='auto';$('audioName').textContent=file.name;message('Audio ditambahkan. Audio akan dicoba ikut dalam ekspor.')}
 function setDuration(){duration=+$('duration').value;$('durationMirror').value=String(duration);base=Math.min(base,duration);buildSmartBrollPlan();draw(base)}
-async function exportVideo(){if(exporting)return;if(!window.MediaRecorder||!canvas.captureStream){message('Browser ini belum mendukung export WebM. Coba Chrome terbaru.');return}if(!video){message('Upload video utama dulu sebelum export.');return}exporting=true;pause();const oldW=canvas.width,oldH=canvas.height,oldBase=base,oldDuration=duration,r=$('ratio').value,res=+$('resolution').value,fps=+$('fps').value;let w,h;if(r==='16:9'){w=res;h=Math.round(res*9/16)}else if(r==='1:1'){w=h=res}else{h=res;w=Math.round(res*9/16)}canvas.width=w;canvas.height=h;draw(0);let stream,ac;const chunks=[];try{stream=canvas.captureStream(fps);try{const mediaEl=audio||video;if(mediaEl){ac=new(window.AudioContext||window.webkitAudioContext)();const src=ac.createMediaElementSource(mediaEl),dest=ac.createMediaStreamDestination();src.connect(dest);dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));await ac.resume()}}catch(e){message('Video tetap dirender; audio capture dibatasi browser. Coba Chrome terbaru jika suara export tidak muncul.')}const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];const mime=types.find(x=>MediaRecorder.isTypeSupported(x))||'';const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:res>=1080?6500000:3500000}:undefined);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};const done=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=e=>reject(e.error||new Error('Recorder error'))});rec.start(250);$('exportBtn').disabled=$('exportSide').disabled=true;$('exportBtn').textContent='● Rendering…';if(video){video.muted=false;video.defaultMuted=false;video.currentTime=0;await video.play().catch(()=>{})}if(audio){audio.currentTime=0;await audio.play().catch(()=>{})}const start=performance.now();await new Promise(resolve=>{function frame(){const elapsed=(performance.now()-start)/1000,t=Math.min(oldDuration,elapsed);syncMedia(video,t);syncBroll(t);draw(t);message('Rendering '+Math.round(Math.min(100,elapsed/oldDuration*100))+'% · '+fmt(t)+' / '+fmt(oldDuration));if(elapsed>=oldDuration){resolve();return}requestAnimationFrame(frame)}requestAnimationFrame(frame)});if(video){video.pause();video.muted=true;video.defaultMuted=true}if(audio)audio.pause();if(autoBroll)autoBroll.el.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>x.el.pause());rec.stop();await done;const blob=new Blob(chunks,{type:rec.mimeType||'video/webm'});if(blob.size){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ailabs-auto-motion-'+Date.now()+'.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);message('Export selesai · '+(blob.size/1048576).toFixed(1)+' MB · WebM')}else message('File export kosong. Coba 720p / 30 FPS.')}catch(e){message('Export gagal: '+(e.message||'unknown error'))}finally{if(video)video.pause();if(audio)audio.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>x.el.pause());if(ac)await ac.close().catch(()=>{});if(stream)stream.getTracks().forEach(t=>t.stop());canvas.width=oldW;canvas.height=oldH;duration=oldDuration;base=oldBase;draw(base);exporting=false;$('exportBtn').disabled=$('exportSide').disabled=false;$('exportBtn').textContent='⇩ Export WebM'}}
+async function exportVideo(){if(exporting)return;if(!window.MediaRecorder||!canvas.captureStream){message('Browser ini belum mendukung export WebM. Coba Chrome terbaru.');return}if(!video){message('Upload video utama dulu sebelum export.');return}exporting=true;pause();const oldW=canvas.width,oldH=canvas.height,oldBase=base,oldDuration=duration,r=$('ratio').value,res=+$('resolution').value,fps=+$('fps').value;let w,h;if(r==='16:9'){w=res;h=Math.round(res*9/16)}else if(r==='1:1'){w=h=res}else{h=res;w=Math.round(res*9/16)}canvas.width=w;canvas.height=h;draw(0);let stream,ac,sfxDestination;const sfxEvents=buildAutoSfxEvents();let sfxIndex=0,lastSfxAt=-.01;const chunks=[];try{stream=canvas.captureStream(fps);try{const mediaEl=audio||video;if(mediaEl){ac=new(window.AudioContext||window.webkitAudioContext)();sfxDestination=ac.createMediaStreamDestination();const src=ac.createMediaElementSource(mediaEl);src.connect(sfxDestination);sfxDestination.stream.getAudioTracks().forEach(t=>stream.addTrack(t));await ac.resume()}}catch(e){message('Video tetap dirender; audio/SFX capture dibatasi browser. Coba Chrome terbaru jika suara export tidak muncul.')}const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];const mime=types.find(x=>MediaRecorder.isTypeSupported(x))||'';const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:res>=1080?6500000:3500000}:undefined);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};const done=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=e=>reject(e.error||new Error('Recorder error'))});rec.start(250);$('exportBtn').disabled=$('exportSide').disabled=true;$('exportBtn').textContent='● Rendering…';if(video){video.muted=false;video.defaultMuted=false;video.currentTime=0;await video.play().catch(()=>{})}if(audio){audio.currentTime=0;await audio.play().catch(()=>{})}const start=performance.now();await new Promise(resolve=>{function frame(){const elapsed=(performance.now()-start)/1000,t=Math.min(oldDuration,elapsed);syncMedia(video,t);syncBroll(t);if(ac&&sfxDestination){sfxIndex=scheduleAutoSfx(lastSfxAt,t,sfxEvents,sfxIndex,ac,sfxDestination);lastSfxAt=t}draw(t);message('Rendering '+Math.round(Math.min(100,elapsed/oldDuration*100))+'% · '+fmt(t)+' / '+fmt(oldDuration));if(elapsed>=oldDuration){resolve();return}requestAnimationFrame(frame)}requestAnimationFrame(frame)});if(video){video.pause();video.muted=true;video.defaultMuted=true}if(audio)audio.pause();if(autoBroll)autoBroll.el.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>x.el.pause());rec.stop();await done;const blob=new Blob(chunks,{type:rec.mimeType||'video/webm'});if(blob.size){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ailabs-auto-motion-'+Date.now()+'.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);message('Export selesai · '+(blob.size/1048576).toFixed(1)+' MB · WebM')}else message('File export kosong. Coba 720p / 30 FPS.')}catch(e){message('Export gagal: '+(e.message||'unknown error'))}finally{if(video)video.pause();if(audio)audio.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>x.el.pause());if(ac)await ac.close().catch(()=>{});if(stream)stream.getTracks().forEach(t=>t.stop());canvas.width=oldW;canvas.height=oldH;duration=oldDuration;base=oldBase;draw(base);exporting=false;$('exportBtn').disabled=$('exportSide').disabled=false;$('exportBtn').textContent='⇩ Export WebM'}}
 
 document.querySelectorAll('[data-broll-mode]').forEach(b=>b.onclick=()=>{
  $('brollMode').value=b.dataset.brollMode;syncQuickControls();draw(base);
