@@ -42,10 +42,96 @@ button:hover,.filepick:hover{border-color:#c8f34a}
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id),canvas=$('canvas'),ctx=canvas.getContext('2d');
-let video=null,audio=null,broll=[],videoURL=null,audioURL=null,autoBroll=null,autoBrollURL=null,playing=false,raf=0,clock=0,base=0,duration=10,exporting=false;
+let video=null,audio=null,broll=[],videoURL=null,audioURL=null,autoBroll=null,autoBrollURL=null,playing=false,raf=0,clock=0,base=0,duration=10,exporting=false,captionMode='manual',subtitleCues=[],captionBusy=false,asrPromise=null;
 const captionNames={viral:'VIRAL BOLD',highlight:'WORD HIGHLIGHT',karaoke:'KARAOKE',clean:'SUBTITLE CLEAN',neon:'NEON GLOW',cinema:'CINEMATIC',typewriter:'TYPEWRITER',bounce:'POP BOUNCE',glitch:'GLITCH',depth:'3D DEPTH',comic:'COMIC IMPACT',minimal:'MINIMAL WHITE',gold:'LUXURY GOLD',gradient:'GRADIENT TEXT',box:'BOX CAPTION',split:'SPLIT LINES',kinetic:'KINETIC TYPE',story:'SOCIAL STORY'};
 let captionPreset='viral';
 const settings=()=>({text:$('captionText').value.trim(),font:+$('fontSize').value,y:+$('textY').value/100,color:$('textColor').value,anim:$('textAnim').value,start:Math.max(0,+$('captionStart').value||0),preset:captionPreset,bg:$('bgStyle').value,bgI:+$('bgIntensity').value/100,bgO:+$('bgOpacity').value/100,brollMode:$('brollMode').value,brollStart:Math.max(0,+$('brollStart').value||0),brollInterval:Math.max(2,+$('brollInterval').value||5),brollDuration:Math.max(1,+$('brollDuration').value||2),brollSize:+$('brollSize').value/100,ratio:$('ratio').value});
+
+function syncQuickControls(){
+ const mode=$('brollMode').value;
+ document.querySelectorAll('[data-broll-mode]').forEach(b=>b.classList.toggle('active',b.dataset.brollMode===mode));
+ $('brollQuickStatus').textContent=mode==='auto'?'Otomatis: sisipan/crop dari video utama, tanpa upload tambahan.':mode==='manual'?(broll.length?'Manual: memakai '+broll.length+' klip yang kamu upload.':'Manual: tekan Add B-roll clips untuk memilih klip.'):'B-roll nonaktif.';
+ $('captionManualBtn').classList.toggle('active',captionMode==='manual');
+ $('captionAutoBtn').classList.toggle('active',captionMode==='auto');
+ $('captionQuickStatus').textContent=captionMode==='auto'?(subtitleCues.length?'Auto Caption aktif · '+subtitleCues.length+' cue subtitle.':'Transkripsi otomatis dipilih.'):'Manual: tulis teks sendiri di bagian Caption Content.';
+}
+function setCaptionMode(mode){
+ captionMode=mode;
+ $('captionText').readOnly=mode==='auto';
+ syncQuickControls();draw(base);
+ if(mode==='manual')message('Mode caption manual aktif.');
+}
+function resampleAudio(chunks,sourceRate,targetRate){
+ let total=0;for(const x of chunks)total+=x.length;
+ if(!total)return new Float32Array(0);
+ const merged=new Float32Array(total);let at=0;for(const x of chunks){merged.set(x,at);at+=x.length}
+ if(sourceRate===targetRate)return merged;
+ const outLength=Math.floor(merged.length*targetRate/sourceRate),out=new Float32Array(outLength),ratio=sourceRate/targetRate;
+ for(let i=0;i<outLength;i++){const a=Math.floor(i*ratio),b=Math.min(merged.length,Math.floor((i+1)*ratio));let sum=0;for(let j=a;j<Math.max(a+1,b);j++)sum+=merged[Math.min(j,merged.length-1)];out[i]=sum/Math.max(1,b-a)}
+ return out;
+}
+async function captureVideoAudio(url){
+ const AudioCtx=window.AudioContext||window.webkitAudioContext;
+ if(!AudioCtx)throw new Error('Browser tidak mendukung pemrosesan audio untuk Auto Caption.');
+ const ac=new AudioCtx(),probe=document.createElement('video');
+ probe.preload='auto';probe.playsInline=true;probe.setAttribute('playsinline','');probe.style.cssText='position:fixed;width:2px;height:2px;left:-20px;top:0;opacity:.001;pointer-events:none';document.body.appendChild(probe);
+ const chunks=[];let sampleCount=0,processor,source,silent;
+ try{
+  const metadata=new Promise((resolve,reject)=>{probe.onloadedmetadata=resolve;probe.onerror=()=>reject(new Error('File video tidak dapat dibaca untuk transkripsi.'))});
+  const ended=new Promise((resolve,reject)=>{probe.onended=resolve;probe.onerror=()=>reject(new Error('Gagal membaca audio dari video.'))});
+  source=ac.createMediaElementSource(probe);processor=ac.createScriptProcessor(4096,2,1);silent=ac.createGain();silent.gain.value=0;
+  processor.onaudioprocess=e=>{const input=e.inputBuffer,len=input.length,left=input.getChannelData(0),right=input.numberOfChannels>1?input.getChannelData(1):left,mono=new Float32Array(len);for(let i=0;i<len;i++)mono[i]=(left[i]+right[i])*.5;chunks.push(mono);sampleCount+=len};
+  source.connect(processor);processor.connect(silent);silent.connect(ac.destination);
+  probe.src=url;probe.load();
+  const playPromise=probe.play();
+  await ac.resume();await metadata;await playPromise;await ended;
+  const rate=ac.sampleRate;sourcesafe: { source.disconnect();processor.disconnect();silent.disconnect(); }
+  const samples=resampleAudio(chunks,rate,16000);
+  if(!samples.length||sampleCount<rate*.15)throw new Error('Tidak ditemukan audio yang bisa dibaca di video ini.');
+  let energy=0;for(let i=0;i<samples.length;i+=Math.max(1,Math.floor(samples.length/10000)))energy+=Math.abs(samples[i]);
+  if(energy<.001)throw new Error('Audio video kosong atau tidak terbaca. Pastikan video memiliki suara.');
+  return samples;
+ }finally{
+  probe.pause();probe.removeAttribute('src');probe.load();if(probe.parentNode)probe.parentNode.removeChild(probe);
+  if(ac.state!=='closed')await ac.close().catch(()=>{});
+ }
+}
+function buildCaptionCues(result){
+ const words=(result.chunks||[]).filter(c=>c&&c.text&&Array.isArray(c.timestamp)&&Number.isFinite(c.timestamp[0])).map(c=>({text:c.text.trim(),start:Math.max(0,c.timestamp[0]),end:Number.isFinite(c.timestamp[1])?c.timestamp[1]:c.timestamp[0]+.45})).filter(c=>c.text&&c.end>c.start);
+ const cues=[];let current=[];
+ const flush=()=>{if(!current.length)return;cues.push({start:current[0].start,end:Math.max(current[0].start+.25,current[current.length-1].end),text:current.map(x=>x.text).join(' ').replace(/\\s+/g,' ').trim()});current=[]};
+ for(const word of words){current.push(word);const span=word.end-current[0].start;if(current.length>=5||span>=2.4||/[.!?。！？]$/.test(word.text))flush()}
+ flush();return cues;
+}
+async function transcribeVideo(){
+ if(captionBusy)return;
+ if(!videoURL){message('Upload video utama terlebih dahulu sebelum Auto Caption.');return}
+ if(video&&Number.isFinite(video.duration)&&video.duration>180){message('Auto Caption lokal dibatasi untuk video maksimal 3 menit agar HP tidak kehabisan memori.');return}
+ captionBusy=true;$('captionAutoBtn').disabled=true;$('captionAutoBtn').textContent='Memproses…';
+ try{
+  message('Membaca audio video. Jangan tutup halaman…');
+  const samples=await captureVideoAudio(videoURL);
+  if(!asrPromise)asrPromise=(async()=>{
+   const lib=await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+   lib.env.allowLocalModels=false;lib.env.useBrowserCache=true;
+   if(lib.env.backends&&lib.env.backends.onnx&&lib.env.backends.onnx.wasm)lib.env.backends.onnx.wasm.numThreads=1;
+   return lib.pipeline('automatic-speech-recognition','Xenova/whisper-tiny',{progress_callback:p=>{if(p&&p.status==='progress'&&p.progress)message('Mengunduh model Auto Caption… '+Math.round(p.progress)+'%');else if(p&&p.status==='initiate')message('Menyiapkan model pengenal suara…')}});
+  })();
+  const transcriber=await asrPromise;
+  message('Mengenali ucapan dalam video…');
+  const result=await transcriber(samples,{chunk_length_s:30,stride_length_s:5,return_timestamps:'word'});
+  const cues=buildCaptionCues(result);
+  if(!cues.length)throw new Error('Model tidak menghasilkan timestamp subtitle. Coba video dengan ucapan yang jelas.');
+  subtitleCues=cues;$('captionText').value=(result.text||cues.map(c=>c.text).join(' ')).trim();
+  setCaptionMode('auto');draw(base);message('Auto Caption selesai · '+cues.length+' potongan subtitle. Preview untuk melihat hasil.');
+ }catch(err){
+  message('Auto Caption gagal: '+(err&&err.message?err.message:String(err))+' Coba Chrome terbaru dan koneksi internet stabil.');
+ }finally{
+  captionBusy=false;$('captionAutoBtn').disabled=false;$('captionAutoBtn').textContent='🎙 Auto Caption';
+  syncQuickControls();
+ }
+}
+
 function fmt(v){v=Math.max(0,Math.floor(v));return String(Math.floor(v/60)).padStart(2,'0')+':'+String(v%60).padStart(2,'0')}
 function message(t){$('status').textContent=t}
 function updateUI(t){const p=Math.max(0,Math.min(1,t/duration));$('timeLabel').textContent=fmt(t)+' / '+fmt(duration);$('endLabel').textContent=fmt(duration);['head1','head2','head3'].forEach(id=>$(id).style.left=(p*100)+'%');$('clip').textContent=video?'MAIN VIDEO · '+($('videoFile').files[0]?.name||'Imported'):'MAIN VIDEO NOT LOADED';$('textClip').textContent=captionNames[captionPreset];$('textClip').style.right='0';$('brollClip').textContent=settings().brollMode==='off'?'B-ROLL OFF':settings().brollMode==='manual'?(broll.length?'MANUAL B-ROLL · '+broll.length+' CLIP(S)':'MANUAL · UPLOAD B-ROLL CLIPS'):video?'AUTO B-ROLL · AUTO-SELECTED CLIPS':'AUTO B-ROLL · WAITING FOR VIDEO';$('brollClip').style.right='0'}
@@ -58,7 +144,7 @@ else if(mode==='particles'){for(let i=0;i<65;i++){const x=((i*137.5+t*(9+i%5)*st
 else if(mode==='rings'){const cx=w*.5,cy=h*.5;for(let i=1;i<=10;i++){ctx.beginPath();ctx.arc(cx,cy,i*Math.min(w,h)*.055,0,Math.PI*2);ctx.stroke()}ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.moveTo(0,cy);ctx.lineTo(w,cy);ctx.stroke()}
 else if(mode==='equalizer'){const n=36,gap=w/n;for(let i=0;i<n;i++){const bh=(.025+(.5+.5*Math.sin(t*4+i*.7))*.12*st.bgI)*h;ctx.fillRect(i*gap,h*.84-bh,gap*.38,bh)}}
 ctx.restore()}
-function drawCaption(t,w,h,st){if(!st.text||t<st.start)return;const local=t-st.start;let alpha=1,scale=1,dy=0,dx=0,text=st.text;const entrance=st.anim==='none'?1:Math.min(1,Math.max(.35,local*4));if(st.anim==='fade')alpha=entrance;if(st.anim==='rise'){alpha=entrance;dy=(1-entrance)*h*.06}if(st.anim==='slide'){alpha=entrance;dx=(1-entrance)*w*.18}if(st.anim==='pop'||st.anim==='bounce'){alpha=entrance;scale=st.anim==='bounce'?.82+.18*entrance:.72+.28*entrance}
+function drawCaption(t,w,h,st){if(captionMode==='auto'){const cue=subtitleCues.find(c=>t>=c.start&&t<c.end);if(!cue)return;st={...st,text:cue.text,start:cue.start,anim:'none'};}if(!st.text||t<st.start)return;const local=t-st.start;let alpha=1,scale=1,dy=0,dx=0,text=st.text;const entrance=st.anim==='none'?1:Math.min(1,Math.max(.35,local*4));if(st.anim==='fade')alpha=entrance;if(st.anim==='rise'){alpha=entrance;dy=(1-entrance)*h*.06}if(st.anim==='slide'){alpha=entrance;dx=(1-entrance)*w*.18}if(st.anim==='pop'||st.anim==='bounce'){alpha=entrance;scale=st.anim==='bounce'?.82+.18*entrance:.72+.28*entrance}
 if(st.anim==='type'||st.preset==='typewriter')text=text.slice(0,Math.ceil(text.length*Math.min(1,local*3)));
 if(st.preset==='split')text=text.split(' ').reduce((acc,word,i)=>acc+(i===0?'':'\n')+word,'');
 if(st.preset==='kinetic'){dx=Math.sin(t*3)*w*.012;scale=1+Math.sin(t*4)*.035}
@@ -149,11 +235,16 @@ $('mediaStatus').textContent='Gagal memuat';$('readyBadge').textContent='MEDIA E
 message('Kesalahan saat membuka file: '+(err&&err.message?err.message:String(err)));
 }
 }
-function loadBroll(files){if(!files||!files.length)return;broll.forEach(x=>{x.el.pause();URL.revokeObjectURL(x.url)});broll=[];Array.from(files).forEach(file=>{const url=URL.createObjectURL(file),el=document.createElement('video');el.src=url;el.muted=true;el.playsInline=true;el.preload='auto';broll.push({file,url,el})});$('brollName').textContent=broll.length+' klip dipilih: '+Array.from(files).map(f=>f.name).slice(0,2).join(', ')+(files.length>2?'…':'');$('brollMode').value='overlay';message('B-roll siap. Atur interval dan durasi untuk menyisipkan klip otomatis.');draw(base)}
+function loadBroll(files){if(!files||!files.length)return;broll.forEach(x=>{x.el.pause();URL.revokeObjectURL(x.url)});broll=[];Array.from(files).forEach(file=>{const url=URL.createObjectURL(file),el=document.createElement('video');el.src=url;el.muted=true;el.playsInline=true;el.preload='auto';broll.push({file,url,el})});$('brollName').textContent=broll.length+' klip manual: '+Array.from(files).map(f=>f.name).slice(0,2).join(', ')+(files.length>2?'…':'');$('brollMode').value='manual';syncQuickControls();message('Mode Manual aktif. Klip B-roll unggahan akan dipakai.');draw(base)}
 function loadAudio(file){if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);audio=new Audio(audioURL);audio.preload='auto';$('audioName').textContent=file.name;message('Audio ditambahkan. Audio akan dicoba ikut dalam ekspor.')}
 function setDuration(){duration=+$('duration').value;$('durationMirror').value=String(duration);base=Math.min(base,duration);draw(base)}
 async function exportVideo(){if(exporting)return;if(!window.MediaRecorder||!canvas.captureStream){message('Browser ini belum mendukung export WebM. Coba Chrome terbaru.');return}if(!video){message('Upload video utama dulu sebelum export.');return}exporting=true;pause();const oldW=canvas.width,oldH=canvas.height,oldBase=base,oldDuration=duration,r=$('ratio').value,res=+$('resolution').value,fps=+$('fps').value;let w,h;if(r==='16:9'){w=res;h=Math.round(res*9/16)}else if(r==='1:1'){w=h=res}else{h=res;w=Math.round(res*9/16)}canvas.width=w;canvas.height=h;draw(0);let stream,ac;const chunks=[];try{stream=canvas.captureStream(fps);try{const mediaEl=audio||video;if(mediaEl){ac=new(window.AudioContext||window.webkitAudioContext)();const src=ac.createMediaElementSource(mediaEl),dest=ac.createMediaStreamDestination();src.connect(dest);dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));await ac.resume()}}catch(e){message('Video tetap dirender; audio capture dibatasi browser. Coba Chrome terbaru jika suara export tidak muncul.')}const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];const mime=types.find(x=>MediaRecorder.isTypeSupported(x))||'';const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:res>=1080?6500000:3500000}:undefined);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};const done=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=e=>reject(e.error||new Error('Recorder error'))});rec.start(250);$('exportBtn').disabled=$('exportSide').disabled=true;$('exportBtn').textContent='● Rendering…';if(video){video.muted=false;video.defaultMuted=false;video.currentTime=0;await video.play().catch(()=>{})}if(audio){audio.currentTime=0;await audio.play().catch(()=>{})}const start=performance.now();await new Promise(resolve=>{function frame(){const elapsed=(performance.now()-start)/1000,t=Math.min(oldDuration,elapsed);syncMedia(video,t);syncBroll(t);draw(t);message('Rendering '+Math.round(Math.min(100,elapsed/oldDuration*100))+'% · '+fmt(t)+' / '+fmt(oldDuration));if(elapsed>=oldDuration){resolve();return}requestAnimationFrame(frame)}requestAnimationFrame(frame)});if(video){video.pause();video.muted=true;video.defaultMuted=true}if(audio)audio.pause();if(autoBroll)autoBroll.el.pause();broll.forEach(x=>x.el.pause());rec.stop();await done;const blob=new Blob(chunks,{type:rec.mimeType||'video/webm'});if(blob.size){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ailabs-auto-motion-'+Date.now()+'.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);message('Export selesai · '+(blob.size/1048576).toFixed(1)+' MB · WebM')}else message('File export kosong. Coba 720p / 30 FPS.')}catch(e){message('Export gagal: '+(e.message||'unknown error'))}finally{if(video)video.pause();if(audio)audio.pause();broll.forEach(x=>x.el.pause());if(ac)await ac.close().catch(()=>{});if(stream)stream.getTracks().forEach(t=>t.stop());canvas.width=oldW;canvas.height=oldH;duration=oldDuration;base=oldBase;draw(base);exporting=false;$('exportBtn').disabled=$('exportSide').disabled=false;$('exportBtn').textContent='⇩ Export WebM'}}
-$('videoFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadVideo(f)};$('brollFiles').onchange=e=>{const f=e.target.files;e.target.value='';loadBroll(f)};$('audioFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadAudio(f)};$('playBtn').onclick=$('playSmall').onclick=()=>playing?pause():play();$('exportBtn').onclick=$('exportSide').onclick=exportVideo;$('backBtn').onclick=()=>{pause();base=Math.max(0,base-1);syncMedia(video,base);draw(base)};$('forwardBtn').onclick=()=>{pause();base=Math.min(duration,base+1);syncMedia(video,base);draw(base)};$('duration').onchange=setDuration;$('durationMirror').onchange=e=>{$('duration').value=e.target.value;setDuration()};$('ratio').onchange=resize;$('brollMode').onchange=()=>{draw(base);const mode=$('brollMode').value;message(mode==='off'?'B-roll dimatikan.':mode==='manual'?(broll.length?'Mode manual aktif. Klip unggahan akan dipakai.':'Mode manual aktif. Unggah klip lewat Add B-roll clips.'):'Mode otomatis aktif. Sisipan dibuat dari video utama.')};
+
+document.querySelectorAll('[data-broll-mode]').forEach(b=>b.onclick=()=>{$('brollMode').value=b.dataset.brollMode;syncQuickControls();draw(base);const mode=$('brollMode').value;message(mode==='auto'?'Mode Auto B-roll aktif.':mode==='manual'?(broll.length?'Mode Manual aktif. Klip yang diunggah akan dipakai.':'Mode Manual aktif. Tekan Add B-roll clips.'):'B-roll dimatikan.')});
+$('captionManualBtn').onclick=()=>setCaptionMode('manual');
+$('captionAutoBtn').onclick=transcribeVideo;
+syncQuickControls();
+\n$('videoFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadVideo(f)};$('brollFiles').onchange=e=>{const f=e.target.files;e.target.value='';loadBroll(f)};$('audioFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadAudio(f)};$('playBtn').onclick=$('playSmall').onclick=()=>playing?pause():play();$('exportBtn').onclick=$('exportSide').onclick=exportVideo;$('backBtn').onclick=()=>{pause();base=Math.max(0,base-1);syncMedia(video,base);draw(base)};$('forwardBtn').onclick=()=>{pause();base=Math.min(duration,base+1);syncMedia(video,base);draw(base)};$('duration').onchange=setDuration;$('durationMirror').onchange=e=>{$('duration').value=e.target.value;setDuration()};$('ratio').onchange=resize;$('brollMode').onchange=()=>{syncQuickControls();draw(base);const mode=$('brollMode').value;message(mode==='off'?'B-roll dimatikan.':mode==='manual'?(broll.length?'Mode Manual aktif. Klip unggahan akan dipakai.':'Mode Manual aktif. Unggah klip lewat Add B-roll clips.'):'Mode Otomatis aktif. Sisipan dibuat dari video utama.')};
 ['videoTrack','captionTrack','brollTrack'].forEach(id=>$(id).addEventListener('click',e=>{pause();const r=e.currentTarget.getBoundingClientRect();base=Math.max(0,Math.min(duration,(e.clientX-r.left)/r.width*duration));syncMedia(video,base);draw(base)}));
 ['captionText','fontSize','textY','textColor','textAnim','captionStart','bgStyle','bgIntensity','bgOpacity','brollMode','brollStart','brollInterval','brollDuration','brollSize'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='fontSize')$('fontVal').textContent=$('fontSize').value+' px';if(id==='textY')$('textYVal').textContent=$('textY').value+'%';if(id==='bgIntensity')$('bgIntensityVal').textContent=$('bgIntensity').value+'%';if(id==='bgOpacity')$('bgOpacityVal').textContent=$('bgOpacity').value+'%';draw(base)}));
 document.querySelectorAll('[data-caption]').forEach(b=>b.onclick=()=>{captionPreset=b.dataset.caption;document.querySelectorAll('[data-caption]').forEach(x=>x.classList.toggle('active',x===b));draw(base)});
