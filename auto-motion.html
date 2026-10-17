@@ -214,7 +214,7 @@ function buildSmartBrollPlan(){
 async function searchStockBroll(options={}){
  const silent=!!options.silent;
  if(stockBrollBusy)return;
- if($('brollMode').value==='off')$('brollMode').value='auto';
+ $('brollMode').value='auto';syncQuickControls();
  if(!smartBrollPlan.length)buildSmartBrollPlan();
  let captionText=$('captionText').value.trim();
  let queries=[...new Set(smartBrollPlan.map(p=>p.query).filter(Boolean))].slice(0,4);
