@@ -1,1501 +1,417 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AiLabs 4D Video Editor</title>
-  
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- React & ReactDOM CDN -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
-  <!-- Babel CDN (Untuk menjalankan JSX di browser) -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <style>
-    /* Styling scrollbar tipis */
-    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #444; border-radius: 10px; }
-  </style>
-</head>
-<body class="bg-[#0a0a0a] text-white">
-  
-  <!-- Wadah utama React -->
-  <div id="root"></div>
-
-  <!-- Kode React Aplikasi -->
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    // --- ICONS (Pengganti Lucide-React agar bisa jalan tanpa npm install) ---
-    const Play = ({ size=24, className="", fill="none" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>);
-    const ImageIcon = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>);
-    const Video = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m22 8-6 4 6 4V8Z"></path><rect width="14" height="12" x="2" y="6" rx="2" ry="2"></rect></svg>);
-    const Upload = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>);
-    const Music = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>);
-    const Loader2 = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>);
-    const Download = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>);
-    const Scissors = ({ size=24, className="" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="6" cy="6" r="3"></circle><path d="M8.12 8.12 12 12"></path><path d="M20 4 8.12 15.88"></path><circle cx="6" cy="18" r="3"></circle><path d="M14.8 14.8 20 20"></path></svg>);
-
-    // --- DATA PROMPTS & DEFAULT TIPE EFEK (Dikonversi ke Object untuk Pure Math Rendering) ---
-    const promptsData = {
-      tesseractWarp: {
-        title: "4D Tesseract Warp",
-        text: "Membengkokkan ruang dengan rotasi dan zoom seimbang.",
-        startTransform: { s: 1.8, r: 12, tx: -5, ty: -5 },
-        endTransform: { s: 1.2, r: -1, tx: 2, ty: 2 },
-      },
-      quantumLeapRight: {
-        title: "4D Quantum Leap Right",
-        text: "Lompatan dimensi ke kanan dengan tarikan medium.",
-        startTransform: { s: 1.2, tx: -4, skX: -3 },
-        endTransform: { s: 1.6, tx: 8, skX: 2 },
-      },
-      quantumLeapLeft: {
-        title: "4D Quantum Leap Left",
-        text: "Lompatan dimensi ke kiri dengan tarikan medium.",
-        startTransform: { s: 1.6, tx: 8, skX: 2 },
-        endTransform: { s: 1.2, tx: -4, skX: -3 },
-      },
-      dimensionDrift: {
-        title: "4D Dimension Drift",
-        text: "Mengambang melintasi ruang angkasa secara mulus.",
-        startTransform: { s: 1.7, r: -8, tx: 5, ty: 5 },
-        endTransform: { s: 1.25, r: 2, tx: -3, ty: -3 },
-      },
-      hyperVortex: {
-        title: "4D Hyper Vortex",
-        text: "Pusaran dimensi yang fokus pada subjek.",
-        startTransform: { s: 2.0, r: 15 },
-        endTransform: { s: 1.15, r: 0 },
-      },
-      timeSlipPush: {
-        title: "4D Time-Slip Push",
-        text: "Dorongan waktu dinamis ke depan.",
-        startTransform: { s: 1.15, ty: 2 },
-        endTransform: { s: 1.7, ty: -6 },
-      },
-      timeSlipPull: {
-        title: "4D Time-Slip Pull",
-        text: "Tarik mundur dinamis.",
-        startTransform: { s: 1.7, ty: -6 },
-        endTransform: { s: 1.15, ty: 2 },
-      },
-      gravityCrush: {
-        title: "4D Gravity Crush",
-        text: "Bantingan gravitasi fokus tengah.",
-        startTransform: { s: 1.6, r: 6, ty: -8 },
-        endTransform: { s: 1.2, r: -2, ty: 4 },
-      },
-      panoramicGlideRight: {
-        title: "4D Panoramic Glide Right",
-        text: "Pergerakan mulus horizontal ke kanan.",
-        startTransform: { s: 1.3, tx: -8 },
-        endTransform: { s: 1.3, tx: 8 },
-      },
-      panoramicGlideLeft: {
-        title: "4D Panoramic Glide Left",
-        text: "Pergerakan mulus horizontal ke kiri.",
-        startTransform: { s: 1.3, tx: 8 },
-        endTransform: { s: 1.3, tx: -8 },
-      },
-      cinematicRise: {
-        title: "4D Cinematic Rise",
-        text: "Pergerakan vertikal mulus ke atas.",
-        startTransform: { s: 1.25, ty: 8 },
-        endTransform: { s: 1.25, ty: -8 },
-      },
-      cinematicFall: {
-        title: "4D Cinematic Fall",
-        text: "Pergerakan vertikal mulus ke bawah.",
-        startTransform: { s: 1.25, ty: -8 },
-        endTransform: { s: 1.25, ty: 8 },
-      },
-      dutchAngleRight: {
-        title: "4D Dutch Angle Right",
-        text: "Rotasi kamera miring ke kanan dengan zoom.",
-        startTransform: { s: 1.5, r: -10 },
-        endTransform: { s: 1.1, r: 4 },
-      },
-      dutchAngleLeft: {
-        title: "4D Dutch Angle Left",
-        text: "Rotasi kamera miring ke kiri dengan zoom.",
-        startTransform: { s: 1.5, r: 10 },
-        endTransform: { s: 1.1, r: -4 },
-      },
-      hyperspaceDive: {
-        title: "4D Hyperspace Dive",
-        text: "Terjun cepat ke dalam dimensi.",
-        startTransform: { s: 1.0 },
-        endTransform: { s: 2.5 },
-      },
-      hyperspaceEscape: {
-        title: "4D Hyperspace Escape",
-        text: "Menarik diri dengan cepat dari dimensi.",
-        startTransform: { s: 2.5 },
-        endTransform: { s: 1.0 },
-      },
-      spatialTwist: {
-        title: "4D Spatial Twist",
-        text: "Distorsi ruang miring yang ekstrim.",
-        startTransform: { s: 1.4, skY: -6, tx: -4, ty: -4 },
-        endTransform: { s: 1.4, skY: 6, tx: 4, ty: 4 },
-      },
-      orbitSweep: {
-        title: "4D Orbit Sweep",
-        text: "Ayunan rotasi menyapu dari samping.",
-        startTransform: { s: 1.6, r: -18, tx: -12 },
-        endTransform: { s: 1.1, r: 0, tx: 0 },
-      },
-      phantomSlide: {
-        title: "4D Phantom Slide",
-        text: "Gesekan hantu dengan kemiringan horizontal.",
-        startTransform: { s: 1.4, tx: 12, skX: 8 },
-        endTransform: { s: 1.1, tx: -4, skX: 0 },
-      },
-      echoDrop: {
-        title: "4D Echo Drop",
-        text: "Jatuh berputar menjauh dari kamera.",
-        startTransform: { s: 2.2, r: 12, ty: 5 },
-        endTransform: { s: 1.0, r: -2, ty: -5 },
-      }
-    };
-
-    // Helper pembangun string CSS
-    const getCssTransform = (t) => `scale(${t?.s ?? 1}) translate(${t?.tx ?? 0}%, ${t?.ty ?? 0}%) rotate(${t?.r ?? 0}deg) skewX(${t?.skX ?? 0}deg) skewY(${t?.skY ?? 0}deg)`;
-
-    const graphPresets = {
-      hyperWhip: [ 
-        { id: 1, x: 0.05, y: 0.05, hIn: null, hOut: { dx: 0.6, dy: 0 } },
-        { id: 2, x: 0.95, y: 0.95, hIn: { dx: -0.6, dy: 0 }, hOut: null }
-      ],
-      dimensionalImpact: [ 
-        { id: 1, x: 0.05, y: 0.85, hIn: null, hOut: { dx: 0.1, dy: 0.3 } },
-        { id: 2, x: 0.25, y: 0.98, hIn: { dx: -0.1, dy: -0.1 }, hOut: { dx: 0.4, dy: 0 } },
-        { id: 3, x: 0.95, y: 1.0, hIn: { dx: -0.3, dy: 0 }, hOut: null }
-      ],
-      timeWarp: [ 
-        { id: 1, x: 0.1, y: 0.1, hIn: null, hOut: { dx: 0.1, dy: 0.8 } },
-        { id: 2, x: 0.4, y: 0.1, hIn: { dx: -0.2, dy: -0.1 }, hOut: { dx: 0.3, dy: -0.1 } },
-        { id: 3, x: 0.9, y: 0.1, hIn: { dx: -0.1, dy: 0.9 }, hOut: null }
-      ],
-      smoothGlide: [
-        { id: 1, x: 0.0, y: 0.0, hIn: null, hOut: { dx: 0.4, dy: 0 } },
-        { id: 2, x: 1.0, y: 1.0, hIn: { dx: -0.4, dy: 0 }, hOut: null }
-      ],
-      suddenBrake: [
-        { id: 1, x: 0.0, y: 0.0, hIn: null, hOut: { dx: 0.1, dy: 0.9 } },
-        { id: 2, x: 1.0, y: 1.0, hIn: { dx: -0.5, dy: 0 }, hOut: null }
-      ]
-    };
-
-    function App() {
-      const [mediaFiles, setMediaFiles] = useState([]); 
-      const [audioFile, setAudioFile] = useState(null);
-      const [audioUrl, setAudioUrl] = useState(null);
-      const [beats, setBeats] = useState([]); 
-      const beatsRef = useRef([]); // Ref tracking untuk fast-rendering math
-      const currentBeatIdxRef = useRef(0); // Penyelaras presisi Canvas & Layar Preview
-      
-      const [isAnalyzing, setIsAnalyzing] = useState(false);
-      
-      const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-      const [aspectRatio, setAspectRatio] = useState('9/16'); 
-      
-      const [currentEffectKey, setCurrentEffectKey] = useState('tesseractWarp'); 
-      const currentEffectKeyRef = useRef('tesseractWarp');
-      
-      // --- REFERENSI AUDIO & EQ ---
-      const audioRef = useRef(null);
-      const audioSourceRef = useRef(null);
-      const analyserRef = useRef(null);
-      const dataArrayRef = useRef(null);
-      const canvasEqRef = useRef(null);
-      const eqAnimRef = useRef(null);
-      const currentVideoRef = useRef(null);
-
-      // --- HIGH RESOLUTION TIME ENGINE (Solusi Patah-Patah di HP) ---
-      const playStartTimeRef = useRef(0);
-      const isPlayingRef = useRef(false);
-
-      // Fungsi untuk mendapatkan waktu super presisi (60fps) yang independen dari lag browser HP
-      const getSmoothTime = () => {
-          if (!isPlayingRef.current || !audioRef.current) return audioRef.current ? audioRef.current.currentTime : 0;
-          return (performance.now() - playStartTimeRef.current) / 1000;
-      };
-      
-      // --- TAMBAHAN REF & STATE UNTUK DUAL TRIM ---
-      const timelineRef = useRef(null);
-      const [activeTrim, setActiveTrim] = useState(null);
-      
-      useEffect(() => {
-        currentEffectKeyRef.current = currentEffectKey;
-      }, [currentEffectKey]);
-
-      useEffect(() => {
-        beatsRef.current = beats;
-      }, [beats]);
-
-      const getRandomEffect = (currentKey) => {
-        const keys = Object.keys(promptsData);
-        const available = keys.filter(k => k !== currentKey);
-        return available[Math.floor(Math.random() * available.length)];
-      };
-
-      const getRandomGraph = () => {
-        const keys = Object.keys(graphPresets);
-        const randomKey = keys[Math.floor(Math.random() * keys.length)];
-        return JSON.parse(JSON.stringify(graphPresets[randomKey]));
-      };
-      
-      const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-      const [isPreviewing, setIsPreviewing] = useState(false); 
-      
-      const [progress, setProgress] = useState(0); 
-      const [currentBeatDuration, setCurrentBeatDuration] = useState(2.0); 
-      const [triggerAnim, setTriggerAnim] = useState(false); 
-      
-      const animationRef = useRef(null);
-      const [points, setPoints] = useState(JSON.parse(JSON.stringify(graphPresets.hyperWhip)));
-      const svgRef = useRef(null);
-      const [activeDrag, setActiveDrag] = useState(null); 
-      const [selectedPoint, setSelectedPoint] = useState(null); 
-
-      // --- LUT (Look Up Table) untuk Pure Math Rendering (Sangat cepat di HP) ---
-      const currentLUTRef = useRef([]);
-
-      const [isRecording, setIsRecording] = useState(false);
-      const isRecordingRef = useRef(false);
-      const canvasRef = useRef(null);
-      const mediaRecorderRef = useRef(null);
-      const recordedChunksRef = useRef([]);
-
-      const progressBarRef = useRef(null);
-      const progressTextRef = useRef(null);
-
-      // Resolusi Canvas diubah jadi 720p HD (Lebih ringan & anti patah-patah di HP)
-      const canvasRenderWidth = aspectRatio === '9/16' ? 720 : aspectRatio === '16/9' ? 1280 : 720;
-      const canvasRenderHeight = aspectRatio === '9/16' ? 1280 : aspectRatio === '16/9' ? 720 : 720;
-
-      const initAudioSystem = async () => {
-        if (!audioRef.current) return;
-        
-        if (!audioSourceRef.current) {
-            try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                const audioCtx = new AudioContext();
-                
-                const analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 128; 
-                analyser.smoothingTimeConstant = 0.85; 
-                
-                const source = audioCtx.createMediaElementSource(audioRef.current);
-                const dest = audioCtx.createMediaStreamDestination();
-                
-                source.connect(analyser);
-                analyser.connect(dest);
-                analyser.connect(audioCtx.destination); 
-                
-                audioSourceRef.current = { ctx: audioCtx, dest: dest, source: source };
-                analyserRef.current = analyser;
-                dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
-            } catch (err) {
-                console.error("Gagal inisialisasi AudioContext:", err);
-            }
-        }
-        
-        if (audioSourceRef.current?.ctx.state === 'suspended') {
-            await audioSourceRef.current.ctx.resume();
-        }
-      };
-
-      const handleMediaUpload = (e) => {
-        const files = Array.from(e.target.files).slice(0, 20); 
-        if (files.length > 0) {
-          const newMedia = files.map(file => ({
-            url: URL.createObjectURL(file),
-            type: file.type.startsWith('video/') ? 'video' : 'image',
-            startTime: 0, 
-            endTime: null, 
-            duration: 0   
-          }));
-          setMediaFiles(prev => [...prev, ...newMedia].slice(0, 20)); 
-          setCurrentMediaIndex(0);
-          setIsPlayingAudio(false);
-          setIsPreviewing(false);
-          isPlayingRef.current = false;
-        }
-        e.target.value = ''; // Aman di sini
-      };
-
-      const handleAudioUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        if (audioUrl) {
-            URL.revokeObjectURL(audioUrl); 
-        }
-        setAudioFile(file);
-        setAudioUrl(URL.createObjectURL(file));
-        await analyzeAudio(file); // Tunggu sampai selesai
-        
-        e.target.value = ''; 
-      };
-
-      const analyzeAudio = async (file) => {
-        setIsAnalyzing(true);
-        try {
-          const AudioContext = window.AudioContext || window.webkitAudioContext;
-          const audioCtx = new AudioContext();
-
-          const arrayBuffer = await file.arrayBuffer();
-          
-          const audioBuffer = await new Promise((resolve, reject) => {
-              audioCtx.decodeAudioData(arrayBuffer, resolve, reject).catch(reject);
-          });
-          
-          const channelData = audioBuffer.getChannelData(0);
-          const sampleRate = audioBuffer.sampleRate;
-          
-          const peaks = [];
-          const windowSize = Math.floor(sampleRate * 0.1); 
-          let maxGlobal = 0;
-
-          for (let i = 0; i < channelData.length; i += windowSize) {
-            let maxLocal = 0;
-            for (let j = 0; j < windowSize && i + j < channelData.length; j++) {
-              maxLocal = Math.max(maxLocal, Math.abs(channelData[i + j]));
-            }
-            maxGlobal = Math.max(maxGlobal, maxLocal);
-          }
-
-          const threshold = maxGlobal * 0.75; 
-          const minBeatInterval = 0.7; 
-          let lastBeatTime = 0;
-
-          for (let i = 0; i < channelData.length; i += windowSize) {
-            let maxLocal = 0;
-            for (let j = 0; j < windowSize && i + j < channelData.length; j++) {
-              maxLocal = Math.max(maxLocal, Math.abs(channelData[i + j]));
-            }
-            
-            const currentTime = i / sampleRate;
-            if (maxLocal > threshold && (currentTime - lastBeatTime > minBeatInterval)) {
-              peaks.push(currentTime);
-              lastBeatTime = currentTime;
-            }
-          }
-          
-          if (peaks.length === 0 || peaks[0] > 0.2) peaks.unshift(0);
-          setBeats(peaks);
-
-          if (audioCtx.state !== 'closed') {
-              await audioCtx.close();
-          }
-
-        } catch (error) {
-          console.error("Gagal menganalisis audio", error);
-          alert("Gagal memproses audio. File mungkin tidak didukung atau memori penuh.");
-        }
-        setIsAnalyzing(false);
-      };
-
-      // --- PERBAIKAN: Memastikan tidak ada Memory Leak di Animasi EQ ---
-      useEffect(() => {
-        let isEqActive = true;
-
-        if (!isPlayingAudio) {
-            if (eqAnimRef.current) cancelAnimationFrame(eqAnimRef.current);
-            if (canvasEqRef.current) {
-                 const canvas = canvasEqRef.current;
-                 const ctx = canvas.getContext('2d');
-                 if (ctx) {
-                     ctx.clearRect(0, 0, canvas.width, canvas.height);
-                     ctx.fillStyle = '#333';
-                     ctx.fillRect(0, canvas.height - 2, canvas.width, 2);
-                 }
-            }
-            return;
-        }
-
-        const drawEq = () => {
-            if (!isEqActive) return; // Hentikan rekursi jika komponen tidak aktif
-            
-            if (analyserRef.current && dataArrayRef.current && canvasEqRef.current) {
-                const canvas = canvasEqRef.current;
-                const ctx = canvas.getContext('2d');
-                const analyser = analyserRef.current;
-                const dataArray = dataArrayRef.current;
-                
-                analyser.getByteFrequencyData(dataArray);
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                const padding = 4;
-                const barsToDraw = Math.min(48, dataArray.length); 
-                const barWidth = (canvas.width / barsToDraw) - padding;
-                let x = padding / 2;
-                
-                for (let i = 0; i < barsToDraw; i++) {
-                    const rawHeight = (dataArray[i] / 255) * canvas.height;
-                    const barHeight = Math.max(2, rawHeight);
-                    
-                    const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-                    gradient.addColorStop(0, '#c084fc');   
-                    gradient.addColorStop(0.5, '#ec4899'); 
-                    gradient.addColorStop(1, '#fcd34d');   
-                    
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                    
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(x, canvas.height - barHeight - 3, barWidth, 3);
-                    
-                    x += barWidth + padding;
-                }
-            }
-            eqAnimRef.current = requestAnimationFrame(drawEq);
-        };
-        
-        drawEq(); 
-        
-        return () => {
-            isEqActive = false; // Tandai untuk berhenti
-            if (eqAnimRef.current) cancelAnimationFrame(eqAnimRef.current);
-        };
-      }, [isPlayingAudio]);
-
-      useEffect(() => {
-        let animationFrame;
-        let startTime;
-        const animate = (timestamp) => {
-          if (!startTime) startTime = timestamp;
-          const elapsed = (timestamp - startTime) / 1000; 
-          if (elapsed < 2.0) {
-            setProgress((elapsed / 2.0) * 100);
-            animationFrame = requestAnimationFrame(animate);
-          } else {
-            setProgress(100);
-            setIsPreviewing(false); 
-          }
-        };
-        
-        if (isPreviewing) {
-          animationFrame = requestAnimationFrame(animate);
-        }
-        return () => cancelAnimationFrame(animationFrame);
-      }, [isPreviewing]);
-
-      // --- PERBAIKAN: Loop Preview menggunakan High-Res Time Engine ---
-      useEffect(() => {
-        if (!isPlayingAudio || !audioRef.current || beats.length === 0 || mediaFiles.length === 0) return;
-        let currentBeatIdx = currentBeatIdxRef.current; 
-
-        const loop = () => {
-          // GUNAKAN HIGH-RES TIME untuk mencegah lompatan frame (stuttering)
-          const cTime = getSmoothTime(); 
-          const currentBeatTime = beats[currentBeatIdx];
-          const nextBeatTime = currentBeatIdx < beats.length - 1 ? beats[currentBeatIdx + 1] : audioRef.current.duration;
-          const duration = nextBeatTime - currentBeatTime;
-          
-          if (cTime >= nextBeatTime && currentBeatIdx < beats.length - 1) {
-             currentBeatIdx++;
-             currentBeatIdxRef.current = currentBeatIdx; 
-             
-             setCurrentMediaIndex(currentBeatIdx % mediaFiles.length); 
-             
-             setCurrentEffectKey(getRandomEffect(currentEffectKeyRef.current));
-             setPoints(getRandomGraph());
-             
-             const newDuration = (currentBeatIdx < beats.length - 1 ? beats[currentBeatIdx + 1] : audioRef.current.duration) - beats[currentBeatIdx];
-             setCurrentBeatDuration(Math.max(0.3, newDuration)); 
-
-             setTriggerAnim(false);
-             setTimeout(() => setTriggerAnim(true), 20);
-          }
-
-          if (duration > 0) {
-            const pct = ((cTime - currentBeatTime) / duration) * 100;
-            setProgress(Math.max(0, Math.min(100, pct)));
-          }
-
-          if (!audioRef.current.ended && isPlayingRef.current) {
-            animationRef.current = requestAnimationFrame(loop);
-          } else {
-            setIsPlayingAudio(false);
-            isPlayingRef.current = false;
-          }
-        };
-
-        animationRef.current = requestAnimationFrame(loop);
-        return () => cancelAnimationFrame(animationRef.current);
-      }, [isPlayingAudio, beats, mediaFiles.length]);
-
-      const safeMediaIndex = Math.max(0, Math.min(currentMediaIndex, Math.max(0, mediaFiles.length - 1)));
-      const currentEffect = promptsData[currentEffectKey] || promptsData['tesseractWarp'];
-      const activeDuration = isPreviewing ? 2.0 : currentBeatDuration;
-      const currentMedia = mediaFiles.length > 0 ? mediaFiles[safeMediaIndex] : null;
-
-      useEffect(() => {
-          if (mediaFiles.length > 0 && mediaFiles[safeMediaIndex]?.type === 'video' && currentVideoRef.current) {
-              if (isPlayingAudio || isPreviewing) {
-                  try {
-                      currentVideoRef.current.currentTime = mediaFiles[safeMediaIndex].startTime || 0;
-                  } catch (e) {
-                      console.log("Abaikan error DOMException currentTime:", e);
-                  }
-                  
-                  const playPromise = currentVideoRef.current.play();
-                  if (playPromise !== undefined) {
-                      playPromise.catch(e => console.log("Video auto-play interrupted (expected on fast transitions):", e));
-                  }
-              }
-          }
-      }, [safeMediaIndex, isPlayingAudio, isPreviewing]);
-
-      const handlePreviewSingle = () => {
-        if (mediaFiles.length === 0) return;
-        if (isPlayingAudio) {
-          setIsPlayingAudio(false);
-          isPlayingRef.current = false;
-          if (audioRef.current) audioRef.current.pause();
-        }
-        
-        if (currentVideoRef.current && currentMedia?.type === 'video') {
-            currentVideoRef.current.currentTime = currentMedia.startTime || 0;
-        }
-
-        setIsPreviewing(false);
-        setProgress(0);
-        setTriggerAnim(false);
-        setCurrentEffectKey(getRandomEffect(currentEffectKey));
-        setPoints(getRandomGraph());
-        setTimeout(() => {
-          setIsPreviewing(true);
-          setTriggerAnim(true);
-        }, 50);
-      };
-
-      const handlePlaySequence = async (forceRestart = false) => {
-        if (!audioUrl || mediaFiles.length === 0) {
-            alert("Upload minimal 1 media (foto/video) dan musik terlebih dahulu untuk sequence!");
-            return;
-        }
-        
-        if (isPreviewing) setIsPreviewing(false);
-
-        if (forceRestart === true) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-            currentBeatIdxRef.current = 0; 
-            setCurrentMediaIndex(0);
-            if (beats.length > 1) {
-                setCurrentBeatDuration(beats[1] - beats[0]);
-            } else {
-                setCurrentBeatDuration(2.0);
-            }
-            
-            await initAudioSystem(); 
-            const playPromise = audioRef.current.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => console.log("Audio play interrupted:", e));
-            }
-            
-            // Set Waktu Super Presisi!
-            playStartTimeRef.current = performance.now();
-            isPlayingRef.current = true;
-            setIsPlayingAudio(true);
-            
-            setTriggerAnim(false);
-            setTimeout(() => setTriggerAnim(true), 50);
-            return;
-        }
-
-        if (isPlayingAudio) {
-          audioRef.current.pause();
-          isPlayingRef.current = false;
-          setIsPlayingAudio(false);
-        } else {
-          setTriggerAnim(false);
-          if (audioRef.current.ended) {
-              audioRef.current.currentTime = 0;
-              currentBeatIdxRef.current = 0; 
-              setCurrentMediaIndex(0);
-          }
-          if (beats.length > 1) {
-              setCurrentBeatDuration(beats[1] - beats[0]);
-          } else {
-              setCurrentBeatDuration(2.0);
-          }
-          
-          await initAudioSystem(); 
-          const playPromise = audioRef.current.play();
-          if (playPromise !== undefined) {
-              playPromise.catch(e => console.log("Audio play interrupted:", e));
-          }
-          
-          // Set Waktu Super Presisi Melanjutkan Durasi!
-          playStartTimeRef.current = performance.now() - (audioRef.current.currentTime * 1000);
-          isPlayingRef.current = true;
-          setIsPlayingAudio(true);
-          
-          setTimeout(() => setTriggerAnim(true), 50);
-        }
-      };
-
-      const handleDownloadVideo = async () => {
-        if (!audioUrl || mediaFiles.length === 0) {
-            alert("Upload media & musik terlebih dahulu untuk direkam.");
-            return;
-        }
-        
-        setIsRecording(true);
-        isRecordingRef.current = true;
-        
-        audioRef.current.currentTime = 0;
-        currentBeatIdxRef.current = 0; // Reset
-        setCurrentMediaIndex(0);
-        if (beats.length > 1) {
-            setCurrentBeatDuration(beats[1] - beats[0]);
-        } else {
-            setCurrentBeatDuration(2.0);
-        }
-
-        try {
-            await initAudioSystem(); 
-            await audioRef.current.play();
-            
-            // AKTIFKAN HIGH-RES TIME ENGINE UNTUK MEREKAM
-            playStartTimeRef.current = performance.now();
-            isPlayingRef.current = true;
-            setIsPlayingAudio(true);
-
-            let audioTracks = [];
-            
-            if (typeof audioRef.current.captureStream === 'function') {
-                const aStream = audioRef.current.captureStream();
-                if (aStream) audioTracks = aStream.getAudioTracks();
-            } else if (typeof audioRef.current.mozCaptureStream === 'function') {
-                const aStream = audioRef.current.mozCaptureStream();
-                if (aStream) audioTracks = aStream.getAudioTracks();
-            }
-
-            if (audioTracks.length === 0 && audioSourceRef.current?.dest?.stream) {
-                audioTracks = audioSourceRef.current.dest.stream.getAudioTracks();
-            }
-
-            const getBestMimeType = () => {
-                const types = [
-                    'video/mp4;codecs=avc1,mp4a.40.2', 
-                    'video/webm;codecs=h264',
-                    'video/webm;codecs=vp8', 
-                    'video/webm' 
-                ];
-                for (const t of types) {
-                    if (MediaRecorder.isTypeSupported(t)) return t;
-                }
-                return 'video/webm'; 
-            };
-
-            // PERBAIKAN: Tangkap di 30 FPS dan Bitrate 8Mbps (Paling Optimal agar HP tidak lag)
-            const canvasStream = canvasRef.current.captureStream(30); 
-            const combinedStream = new MediaStream([
-                ...canvasStream.getVideoTracks(),
-                ...audioTracks
-            ]);
-            
-            const mimeType = getBestMimeType();
-            const recorderOptions = { 
-                mimeType: mimeType,
-                videoBitsPerSecond: 8000000, 
-                audioBitsPerSecond: 192000   
-            };
-            
-            const recorder = new MediaRecorder(combinedStream, recorderOptions);
-            recordedChunksRef.current = [];
-            
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-            };
-            
-            recorder.onstop = () => {
-                const blob = new Blob(recordedChunksRef.current, { type: mimeType });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                
-                const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-                a.download = `AiLabs_Video_${aspectRatio.replace('/', 'x')}.${ext}`;
-                
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                setIsRecording(false);
-                isRecordingRef.current = false;
-            };
-            
-            mediaRecorderRef.current = recorder;
-            recorder.start();
-            
-            setTriggerAnim(false);
-            setTimeout(() => setTriggerAnim(true), 50);
-            
-            let c_imgW = 1, c_imgH = 1;
-
-            const drawFrame = () => {
-                if (!isRecordingRef.current) return;
-
-                // Gunakan High-Res Time Engine untuk sinkronisasi Bar Progress
-                const cTime = getSmoothTime();
-                const totalDuration = audioRef.current ? audioRef.current.duration : 1;
-
-                if (progressBarRef.current && progressTextRef.current && totalDuration > 0) {
-                    const pct = (cTime / totalDuration) * 100;
-                    progressBarRef.current.style.width = `${Math.min(100, pct)}%`;
-                    progressTextRef.current.innerText = `${Math.min(100, Math.round(pct))}%`;
-                }
-                
-                const canvas = canvasRef.current;
-                const ctx = canvas.getContext('2d', { alpha: false }); 
-                const mediaEl = document.getElementById('current-media-element');
-                
-                if (mediaEl) {
-                    c_imgW = mediaEl.videoWidth || mediaEl.naturalWidth || 1;
-                    c_imgH = mediaEl.videoHeight || mediaEl.naturalHeight || 1;
-
-                    const tW = canvas.width;
-                    const tH = canvas.height;
-                    const coverRatio = Math.max(tW / c_imgW, tH / c_imgH);
-                    const drawW = c_imgW * coverRatio;
-                    const drawH = c_imgH * coverRatio;
-
-                    ctx.fillStyle = 'black';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.save();
-                    
-                    // PERBAIKAN: Gunakan perhitungan matematika anti-lag!
-                    const bIdx = currentBeatIdxRef.current; 
-                    const currentBeatTime = beatsRef.current[bIdx] || 0;
-                    const nextBeatTime = bIdx < beatsRef.current.length - 1 ? beatsRef.current[bIdx + 1] : totalDuration;
-                    const duration = Math.max(0.001, nextBeatTime - currentBeatTime);
-                    let timePct = Math.max(0, Math.min(1, (cTime - currentBeatTime) / duration));
-
-                    let easedPct = timePct;
-                    if (currentLUTRef.current.length > 0) {
-                        const lut = currentLUTRef.current;
-                        let idx = 0;
-                        while(idx < lut.length - 1 && lut[idx+1].x < timePct) idx++;
-                        const p1 = lut[idx];
-                        const p2 = lut[idx+1] || p1;
-                        if (p1.x === p2.x) easedPct = p1.y;
-                        else {
-                            const ratio = (timePct - p1.x) / (p2.x - p1.x);
-                            easedPct = p1.y + ratio * (p2.y - p1.y);
-                        }
-                    }
-
-                    const effect = promptsData[currentEffectKeyRef.current] || promptsData['tesseractWarp'];
-                    const sP = effect.startTransform;
-                    const eP = effect.endTransform;
-
-                    const lerp = (s, e, t) => (s ?? 0) + ((e ?? 0) - (s ?? 0)) * t;
-                    const lerpS = (s, e, t) => (s ?? 1) + ((e ?? 1) - (s ?? 1)) * t;
-
-                    const scale = lerpS(sP.s, eP.s, easedPct);
-                    const tx = lerp(sP.tx, eP.tx, easedPct);
-                    const ty = lerp(sP.ty, eP.ty, easedPct);
-                    const r = lerp(sP.r, eP.r, easedPct);
-                    const skX = lerp(sP.skX, eP.skX, easedPct);
-                    const skY = lerp(sP.skY, eP.skY, easedPct);
-
-                    ctx.translate(tW / 2, tH / 2); 
-                    ctx.scale(scale, scale);
-                    ctx.translate((tW * tx) / 100, (tH * ty) / 100); 
-                    ctx.rotate(r * Math.PI / 180);
-                    if (skX || skY) {
-                        ctx.transform(1, Math.tan((skY||0)*Math.PI/180), Math.tan((skX||0)*Math.PI/180), 1, 0, 0);
-                    }
-                    
-                    if (c_imgW > 1 && c_imgH > 1) {
-                        // PERBAIKAN: Matikan filter berat bawaan canvas agar hardware HP bernafas lega
-                        ctx.imageSmoothingEnabled = true;
-                        
-                        ctx.drawImage(mediaEl, -drawW / 2, -drawH / 2, drawW, drawH);
-                    }
-                    
-                    ctx.restore();
-                }
-                requestAnimationFrame(drawFrame);
-            };
-            
-            requestAnimationFrame(drawFrame);
-
-        } catch (err) {
-            console.error("Gagal merekam video", err);
-            alert("Gagal memulai rekaman. Pastikan browser mendukung capture audio & video.");
-            setIsRecording(false);
-            isRecordingRef.current = false;
-        }
-      };
-
-      const removeMedia = (idx) => {
-          setMediaFiles(prev => {
-              const fileToRemove = prev[idx];
-              // PERBAIKAN: Bersihkan memori RAM dari file yang dihapus!
-              if (fileToRemove && fileToRemove.url) {
-                  URL.revokeObjectURL(fileToRemove.url); 
-              }
-              return prev.filter((_, i) => i !== idx);
-          });
-      };
-
-      const handleTrimPointerDown = (e, type) => {
-        e.stopPropagation();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        setActiveTrim(type); 
-      };
-
-      const handleTrimPointerMove = (e) => {
-        if (!activeTrim || !timelineRef.current || !currentMedia) return;
-        const rect = timelineRef.current.getBoundingClientRect();
-        let x = (e.clientX - rect.left) / rect.width;
-        x = Math.max(0, Math.min(1, x)); 
-        const newTime = x * currentMedia.duration;
-
-        setMediaFiles(prev => {
-            const arr = [...prev];
-            const media = arr[safeMediaIndex];
-            if (activeTrim === 'start') {
-                media.startTime = Math.min(newTime, (media.endTime || media.duration) - 0.5);
-            } else if (activeTrim === 'end') {
-                media.endTime = Math.max(newTime, (media.startTime || 0) + 0.5);
-            }
-            return arr;
-        });
-
-        if (currentVideoRef.current) {
-            currentVideoRef.current.currentTime = newTime;
-        }
-      };
-
-      const handleTrimPointerUp = () => {
-        setActiveTrim(null);
-      };
-
-      useEffect(() => {
-        const handlePointerMove = (e) => {
-          if (!activeDrag || !svgRef.current) return;
-          const rect = svgRef.current.getBoundingClientRect();
-          let x = (e.clientX - rect.left) / rect.width;
-          let y = 1 - ((e.clientY - rect.top) / rect.height);
-          
-          y = Math.max(-0.5, Math.min(1.5, y));
-
-          setPoints(prev => {
-            const newPts = JSON.parse(JSON.stringify(prev));
-            const pt = newPts[activeDrag.index];
-
-            if (activeDrag.type === 'point') {
-              let newX = x;
-              if (activeDrag.index === 0) newX = Math.max(0, Math.min(0.2, newX)); 
-              else if (activeDrag.index === newPts.length - 1) newX = Math.max(0.8, Math.min(1, newX)); 
-              else {
-                const prevX = newPts[activeDrag.index - 1].x;
-                const nextX = newPts[activeDrag.index + 1].x;
-                newX = Math.max(prevX + 0.01, Math.min(nextX - 0.01, newX));
-              }
-              pt.x = newX;
-              pt.y = y;
-            } 
-            else if (activeDrag.type === 'hIn') {
-              pt.hIn.dx = x - pt.x;
-              pt.hIn.dy = y - pt.y;
-            } 
-            else if (activeDrag.type === 'hOut') {
-              pt.hOut.dx = x - pt.x;
-              pt.hOut.dy = y - pt.y;
-            }
-            return newPts;
-          });
-        };
-        
-        const handlePointerUp = () => setActiveDrag(null);
-        if (activeDrag !== null) {
-          window.addEventListener('pointermove', handlePointerMove);
-          window.addEventListener('pointerup', handlePointerUp);
-        }
-        return () => {
-          window.removeEventListener('pointermove', handlePointerMove);
-          window.removeEventListener('pointerup', handlePointerUp);
-        };
-      }, [activeDrag]);
-
-      // --- PERBAIKAN: Hitung Tabel Pencarian (LUT) Kurva Grafis agar Rendering JS Cepat ---
-      useEffect(() => {
-          const beziers = [];
-          for (let i = 0; i < points.length - 1; i++) {
-              beziers.push({
-                  p1: points[i],
-                  p2: points[i + 1],
-                  cp1: { x: points[i].x + (points[i].hOut?.dx || 0), y: points[i].y + (points[i].hOut?.dy || 0) },
-                  cp2: { x: points[i + 1].x + (points[i + 1].hIn?.dx || 0), y: points[i + 1].y + (points[i + 1].hIn?.dy || 0) }
-              });
-          }
-          const samples = [];
-          beziers.forEach((b) => {
-              for(let j=0; j <= 50; j++) {
-                  const t = j/50;
-                  const mt = 1-t;
-                  const x = Math.pow(mt, 3) * b.p1.x + 3 * Math.pow(mt, 2) * t * b.cp1.x + 3 * mt * Math.pow(t, 2) * b.cp2.x + Math.pow(t, 3) * b.p2.x;
-                  const y = Math.pow(mt, 3) * b.p1.y + 3 * Math.pow(mt, 2) * t * b.cp1.y + 3 * mt * Math.pow(t, 2) * b.cp2.y + Math.pow(t, 3) * b.p2.y;
-                  samples.push({x, y});
-              }
-          });
-          samples.sort((a,b) => a.x - b.x);
-          currentLUTRef.current = samples;
-      }, [points]);
-
-      const getTimingFunctionString = () => {
-        if(currentLUTRef.current.length === 0) return 'linear';
-        const finalSamples = [];
-        for(let pct = 0; pct <= 100; pct += 2) { 
-            const targetX = pct / 100;
-            let closest = currentLUTRef.current[0];
-            let minDiff = Infinity;
-            for (const s of currentLUTRef.current) {
-                const diff = Math.abs(s.x - targetX);
-                if (diff < minDiff) { minDiff = diff; closest = s; }
-            }
-            finalSamples.push(`${closest.y.toFixed(3)} ${pct}%`);
-        }
-        return `linear(${finalSamples.join(', ')})`;
-      };
-
-      const timingFunctionString = getTimingFunctionString();
-      
-      let svgPathD = '';
-      if (points.length > 0) {
-        svgPathD = `M ${points[0].x * 100},${100 - points[0].y * 100} `;
-        for (let i = 0; i < points.length - 1; i++) {
-          const p1 = points[i];
-          const p2 = points[i+1];
-          const cp1x = p1.x + (p1.hOut?.dx || 0);
-          const cp1y = p1.y + (p1.hOut?.dy || 0);
-          const cp2x = p2.x + (p2.hIn?.dx || 0);
-          const cp2y = p2.y + (p2.hIn?.dy || 0);
-          svgPathD += `C ${cp1x * 100},${100 - cp1y * 100} ${cp2x * 100},${100 - cp2y * 100} ${p2.x * 100},${100 - p2.y * 100} `;
-        }
-      }
-
-      return (
-        <div className="min-h-screen bg-[#0a0a0a] text-white font-sans flex flex-col items-center py-8 px-4 relative">
-          
-          {isRecording && (
-            <div className="fixed inset-0 z-[100] bg-[#050505]/95 flex flex-col items-center justify-center p-6 backdrop-blur-xl">
-               <div className="w-32 h-32 mb-8 relative flex items-center justify-center">
-                  <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-                  <span ref={progressTextRef} className="font-bold text-2xl text-white">0%</span>
-               </div>
-               <h2 className="text-3xl font-black tracking-widest text-white mb-3 text-center">RENDERING VIDEO...</h2>
-               <p className="text-slate-400 text-sm mb-10 text-center max-w-md leading-relaxed">
-                  Mesin sedang memproses dimensi 4D dan menyimpan rekaman ke dalam video. <br/>
-                  <span className="text-red-400 font-bold block mt-2">PENTING: JANGAN TUTUP ATAU PINDAH TAB INI</span>
-               </p>
-               <div className="w-full max-w-lg h-4 bg-[#222] rounded-full overflow-hidden shadow-inner relative">
-                  <div ref={progressBarRef} className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-600 to-pink-500 w-0 transition-none"></div>
-               </div>
-            </div>
-          )}
-
-          {audioUrl && (
-            <audio 
-                ref={audioRef} 
-                src={audioUrl} 
-                onEnded={() => {
-                    setIsPlayingAudio(false);
-                    isPlayingRef.current = false;
-                    if (isRecordingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-                        mediaRecorderRef.current.stop();
-                    }
-                }} 
-            />
-          )}
-
-          <canvas 
-            ref={canvasRef} 
-            width={canvasRenderWidth} 
-            height={canvasRenderHeight} 
-            style={{ 
-              width: `${canvasRenderWidth}px`, 
-              height: `${canvasRenderHeight}px`,
-              position: 'fixed', 
-              top: '-20000px', 
-              left: '-20000px', 
-              opacity: 0.01, 
-              pointerEvents: 'none',
-              zIndex: -9999
-            }} 
-          />
-
-          <div className="w-full max-w-5xl flex justify-between items-center mb-6">
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <span>AiLabs Editor & Graph🍌</span>
-            </h1>
-            <div className="flex items-center gap-2 bg-[#1a1a1a] px-3 py-1.5 rounded-lg border border-[#333] shadow-inner">
-               <Video size={16} className="text-green-500 animate-pulse" />
-               <span className="text-xs font-bold text-green-500 tracking-wider">FULL AUTO-SYNC ON</span>
-            </div>
-          </div>
-
-          <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            
-            <div className="flex flex-col gap-4">
-
-              <div className="flex justify-center gap-2 bg-[#121212] p-1.5 rounded-lg border border-[#333] w-fit mx-auto shadow-lg">
-                 <button type="button" onClick={() => setAspectRatio('9/16')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '9/16' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>9:16</button>
-                 <button type="button" onClick={() => setAspectRatio('16/9')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '16/9' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>16:9</button>
-                 <button type="button" onClick={() => setAspectRatio('1/1')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${aspectRatio === '1/1' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-[#222]'}`}>1:1</button>
-              </div>
-
-              <div 
-                 className="bg-[#121212] border border-[#333] rounded-xl overflow-hidden flex flex-col relative shadow-2xl mx-auto w-full group"
-                 style={{
-                    aspectRatio: aspectRatio === '9/16' ? '9/16' : aspectRatio === '16/9' ? '16/9' : '1/1',
-                    maxWidth: aspectRatio === '9/16' ? '360px' : aspectRatio === '16/9' ? '720px' : '450px'
-                 }}
-              >
-                {mediaFiles.length === 0 ? (
-                   <div className="flex-1 flex flex-col items-center justify-center text-slate-500 h-full min-h-[400px]">
-                     <ImageIcon size={48} className="mb-4 opacity-50" />
-                     <p className="text-sm font-medium">Belum ada media yang diunggah</p>
-                     <p className="text-xs mt-2 text-slate-600">Unggah foto/video di panel bawah</p>
-                   </div>
-                ) : (
-                  <>
-                    <div className="flex-1 relative overflow-hidden bg-black h-full">
-                      
-                      {mediaFiles.map((media, i) => {
-                          const isActive = i === safeMediaIndex;
-                          
-                          const isNext = i === (safeMediaIndex + 1) % mediaFiles.length;
-                          const isPrev = i === (safeMediaIndex - 1 + mediaFiles.length) % mediaFiles.length;
-                          const shouldRender = media.type === 'image' || isActive || isNext || isPrev;
-                          
-                          if (!shouldRender) return null;
-
-                          const commonStyle = {
-                              position: 'absolute',
-                              inset: 0,
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              opacity: isActive ? 1 : 0,           
-                              visibility: isActive ? 'visible' : 'hidden',
-                              zIndex: isActive ? 10 : 1,           
-                              transformOrigin: 'center center',
-                              transitionProperty: isActive ? 'transform' : 'none',
-                              transitionDuration: isActive && triggerAnim ? `${activeDuration}s` : '0s',
-                              transitionTimingFunction: isActive && triggerAnim ? timingFunctionString : 'linear',
-                              transform: isActive ? (triggerAnim ? getCssTransform(currentEffect.endTransform) : getCssTransform(currentEffect.startTransform)) : getCssTransform(currentEffect.endTransform),
-                          };
-
-                          if (media.type === 'video') {
-                              return (
-                                  <video 
-                                    key={`vid-cache-${i}`}
-                                    id={isActive ? "current-media-element" : `media-${i}`}
-                                    src={media.url} 
-                                    muted playsInline
-                                    preload={isActive || isNext ? "auto" : "none"}
-                                    ref={(el) => {
-                                        if (isActive) currentVideoRef.current = el;
-                                        if (!isActive && el && !el.paused) el.pause(); 
-                                    }}
-                                    onLoadedMetadata={(e) => {
-                                        const duration = e.target.duration;
-                                        if (!media.duration || Math.abs(media.duration - duration) > 0.1) {
-                                            setMediaFiles(prev => {
-                                                const newFiles = [...prev];
-                                                if (newFiles[i]) {
-                                                    newFiles[i].duration = duration;
-                                                    if (newFiles[i].endTime === null || newFiles[i].endTime === undefined) {
-                                                        newFiles[i].endTime = duration;
-                                                    }
-                                                }
-                                                return newFiles;
-                                            });
-                                        }
-                                        try { e.target.currentTime = media.startTime || 0; } catch (err) {}
-                                    }}
-                                    onTimeUpdate={(e) => {
-                                        if (!isActive) return;
-                                        const end = media.endTime || media.duration || e.target.duration;
-                                        if (e.target.currentTime >= end - 0.1) {
-                                            try { e.target.currentTime = media.startTime || 0; } catch (err) {}
-                                            const p = e.target.play();
-                                            if (p !== undefined) p.catch(err => console.log("Loop interrupt:", err));
-                                        }
-                                    }}
-                                    className="will-change-transform"
-                                    style={commonStyle}
-                                  />
-                              );
-                          } else {
-                              return (
-                                  <img 
-                                    key={`img-cache-${i}`}
-                                    id={isActive ? "current-media-element" : `media-${i}`}
-                                    src={media.url} 
-                                    className="will-change-transform"
-                                    style={commonStyle}
-                                    alt={`media-${i}`}
-                                  />
-                              );
-                          }
-                      })}
-                    </div>
-
-                    <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
-                       <span className="bg-black/50 backdrop-blur-md px-3 py-1 rounded text-xs font-bold border border-white/10 shadow-lg">
-                         {safeMediaIndex + 1} / {mediaFiles.length} ({currentMedia?.type})
-                       </span>
-                       {isPlayingAudio && (
-                         <span className="bg-green-500/20 text-green-400 backdrop-blur-md px-3 py-1 rounded text-xs font-bold border border-green-500/50 flex items-center gap-1 shadow-lg">
-                           <Music size={12} className="mr-1"/> Audio Synced
-                         </span>
-                       )}
-                    </div>
-
-                    {currentMedia?.type === 'video' && currentMedia?.duration > 0 && !isRecording && (
-                        <div className="absolute bottom-24 left-4 right-4 bg-black/80 border border-white/20 p-3 rounded-xl z-20 backdrop-blur-md flex flex-col gap-4 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">
-                            
-                            {/* Trim Start */}
-                            <div className="flex flex-col gap-1.5">
-                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                                   <span className="flex items-center gap-1.5"><Scissors size={12} className="text-pink-500" /> Potong Start Video</span>
-                                   <span className="text-pink-400 bg-pink-500/20 px-2 py-0.5 rounded border border-pink-500/30">
-                                      {Number(currentMedia.startTime || 0).toFixed(1)}s
-                                   </span>
-                                </div>
-                                <input 
-                                   type="range" 
-                                   min="0" 
-                                   max={Math.max(0, (currentMedia.endTime || currentMedia.duration) - 0.5)} 
-                                   step="0.1" 
-                                   value={currentMedia.startTime || 0} 
-                                   onChange={(e) => {
-                                       const time = parseFloat(e.target.value);
-                                       setMediaFiles(prev => {
-                                           const arr = [...prev];
-                                           arr[safeMediaIndex].startTime = time;
-                                           return arr;
-                                       });
-                                       if (currentVideoRef.current) {
-                                           currentVideoRef.current.currentTime = time;
-                                       }
-                                   }}
-                                   className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
-                                />
-                            </div>
-
-                            {/* Trim End */}
-                            <div className="flex flex-col gap-1.5">
-                                <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                                   <span className="flex items-center gap-1.5"><Scissors size={12} className="text-purple-500" /> Potong End Video</span>
-                                   <span className="text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30">
-                                      {Number(currentMedia.endTime || currentMedia.duration).toFixed(1)}s / {Number(currentMedia.duration).toFixed(1)}s
-                                   </span>
-                                </div>
-                                <input 
-                                   type="range" 
-                                   min={(currentMedia.startTime || 0) + 0.5} 
-                                   max={currentMedia.duration || 1} 
-                                   step="0.1" 
-                                   value={currentMedia.endTime || currentMedia.duration} 
-                                   onChange={(e) => {
-                                       const time = parseFloat(e.target.value);
-                                       setMediaFiles(prev => {
-                                           const arr = [...prev];
-                                           arr[safeMediaIndex].endTime = time;
-                                           return arr;
-                                       });
-                                       if (currentVideoRef.current) {
-                                           currentVideoRef.current.currentTime = time;
-                                       }
-                                   }}
-                                   className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-                                />
-                            </div>
-
-                        </div>
-                    )}
-
-                    <button 
-                      type="button"
-                      onClick={handlePreviewSingle}
-                      disabled={isRecording}
-                      className={`absolute bottom-6 right-6 w-14 h-14 bg-white/90 text-black rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-transform z-10 ${isRecording ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
-                      title="Preview gerak di 1 file ini saja"
-                    >
-                      {isPreviewing ? (
-                        <div className="w-5 h-5 bg-black rounded-sm"></div>
-                      ) : (
-                        <Play size={24} fill="currentColor" className="ml-1" />
-                      )}
-                    </button>
-                  </>
-                )}
-              </div>
-              
-              {currentMedia?.type === 'video' && currentMedia?.duration > 0 && !isRecording && (
-                  <div 
-                     className="bg-[#151515] border border-[#333] rounded-xl p-3 shadow-lg mx-auto w-full flex flex-col gap-2"
-                     style={{ maxWidth: aspectRatio === '9/16' ? '360px' : aspectRatio === '16/9' ? '720px' : '450px' }}
-                  >
-                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase tracking-wider px-1">
-                         <span className="flex items-center gap-1.5"><Scissors size={14} className="text-pink-500" /> Potong Klip (Start - End)</span>
-                         <span className="text-pink-400 font-mono bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">
-                            {Number(currentMedia.startTime || 0).toFixed(1)}s - {Number(currentMedia.endTime || currentMedia.duration).toFixed(1)}s
-                         </span>
-                      </div>
-                      
-                      <div 
-                          className="relative w-full h-10 bg-black rounded-lg border border-[#444] flex items-center overflow-hidden group touch-none"
-                          ref={timelineRef}
-                          onPointerMove={handleTrimPointerMove}
-                          onPointerUp={handleTrimPointerUp}
-                          onPointerLeave={handleTrimPointerUp}
-                      >
-                           <div className="absolute inset-0 opacity-20 pointer-events-none flex flex-col justify-between py-0.5">
-                              <div className="w-full h-1.5 bg-[repeating-linear-gradient(90deg,transparent,transparent_6px,white_6px,white_8px)]"></div>
-                              <div className="w-full h-1.5 bg-[repeating-linear-gradient(90deg,transparent,transparent_6px,white_6px,white_8px)]"></div>
-                           </div>
-                           
-                           <div 
-                              className="absolute top-0 bottom-0 left-0 bg-black/70 backdrop-blur-sm pointer-events-none border-r border-[#444] z-10"
-                              style={{ width: `${((currentMedia.startTime || 0) / currentMedia.duration) * 100}%` }}
-                           ></div>
-
-                           <div 
-                              className="absolute top-0 bottom-0 right-0 bg-black/70 backdrop-blur-sm pointer-events-none border-l border-[#444] z-10"
-                              style={{ width: `${(1 - ((currentMedia.endTime || currentMedia.duration) / currentMedia.duration)) * 100}%` }}
-                           ></div>
-                           
-                           <div 
-                              className="absolute top-0 bottom-0 bg-pink-500/20 pointer-events-none border-y border-pink-500/50"
-                              style={{
-                                  left: `${((currentMedia.startTime || 0) / currentMedia.duration) * 100}%`,
-                                  right: `${(1 - ((currentMedia.endTime || currentMedia.duration) / currentMedia.duration)) * 100}%`
-                              }}
-                           ></div>
-                           
-                           <div 
-                              className="absolute top-0 bottom-0 w-4 bg-pink-500 shadow-[0_0_12px_#ec4899] z-20 flex items-center justify-center cursor-ew-resize hover:bg-pink-400 transition-colors rounded-l-md"
-                              style={{ 
-                                  left: `${((currentMedia.startTime || 0) / currentMedia.duration) * 100}%`,
-                                  transform: 'translateX(-100%)' 
-                              }}
-                              onPointerDown={(e) => handleTrimPointerDown(e, 'start')}
-                           >
-                               <div className="w-1 h-4 bg-white/80 rounded-sm pointer-events-none"></div>
-                           </div>
-
-                           <div 
-                              className="absolute top-0 bottom-0 w-4 bg-pink-500 shadow-[0_0_12px_#ec4899] z-20 flex items-center justify-center cursor-ew-resize hover:bg-pink-400 transition-colors rounded-r-md"
-                              style={{ 
-                                  left: `${((currentMedia.endTime || currentMedia.duration) / currentMedia.duration) * 100}%` 
-                              }}
-                              onPointerDown={(e) => handleTrimPointerDown(e, 'end')}
-                           >
-                               <div className="w-1 h-4 bg-white/80 rounded-sm pointer-events-none"></div>
-                           </div>
-                      </div>
-                  </div>
-              )}
-
-              {mediaFiles.length > 0 && audioUrl && (
-                 <button 
-                    type="button"
-                    onClick={handleDownloadVideo}
-                    disabled={isRecording}
-                    className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${
-                      isRecording 
-                        ? 'bg-slate-700 cursor-not-allowed text-white shadow-none' 
-                        : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-pink-500/25 border border-pink-400/30'
-                    }`}
-                 >
-                    {isRecording ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
-                    {isRecording ? 'MENYIAPKAN RENDER...' : 'RENDER & EXPORT 4D VIDEO'}
-                 </button>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <div className="flex justify-center items-center gap-2 text-2xl font-bold tracking-widest text-slate-300 relative mt-2">
-                <div className="absolute top-1/2 w-full h-px bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>
-                AE <span className="bg-[#1a0033] text-[#d499ff] px-2 py-1 rounded-lg border-2 border-[#d499ff] text-xl font-black z-10 relative">Ae</span>
-              </div>
-
-              <div className="bg-transparent text-center flex flex-col justify-center">
-                 <p className="text-[10px] text-purple-400 font-bold mb-1 tracking-widest">🌌 4D HYPER-SPATIAL 🌌</p>
-                 <p className="text-[13px] leading-snug text-slate-400 font-medium">
-                   [{currentEffect?.title}]
-                 </p>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2 px-1">
-                   <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                      Speed Graph <span className="bg-purple-600/30 text-purple-400 px-2 py-0.5 rounded-full text-[9px] border border-purple-500/30">Auto-Changing</span>
-                   </span>
-                </div>
-
-                <div className="bg-[#1e1e1e] border border-[#333] rounded-lg p-4 shadow-inner relative h-56 group">
-                  <div className="absolute inset-4 grid grid-cols-6 grid-rows-4 opacity-30 pointer-events-none border border-slate-600">
-                    {[...Array(24)].map((_, i) => <div key={i} className="border-r border-b border-slate-600/50"></div>)}
-                  </div>
-
-                  <div 
-                    className={`absolute top-4 bottom-4 w-0.5 z-10 pointer-events-none ${isPreviewing ? 'bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]' : 'bg-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.8)]'}`}
-                    style={{ left: `calc(1rem + ${progress}% - 0.5rem)` }} 
-                  />
-
-                  <svg ref={svgRef} viewBox="0 -20 100 140" className="w-full h-full overflow-visible touch-none" style={{ cursor: activeDrag !== null ? 'grabbing' : 'crosshair' }} onPointerDown={() => setSelectedPoint(null)}>
-                    <line x1="0" y1="100" x2="100" y2="100" stroke="#444" strokeWidth="1" strokeDasharray="4,4" />
-                    <line x1="0" y1="0" x2="100" y2="0" stroke="#444" strokeWidth="1" strokeDasharray="4,4" />
-                    <path d={svgPathD} fill="none" stroke="#fff" strokeWidth="2.5" strokeLinejoin="round" />
-                    
-                    {points.map((p, i) => {
-                      const px = p.x * 100;
-                      const py = 100 - p.y * 100;
-                      const isSelected = selectedPoint === i;
-
-                      return (
-                        <g key={p.id}>
-                          {isSelected && p.hIn && (
-                            <g>
-                              <line x1={px} y1={py} x2={px + p.hIn.dx * 100} y2={py - p.hIn.dy * 100} stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2,2" />
-                              <circle cx={px + p.hIn.dx * 100} cy={py - p.hIn.dy * 100} r="4.5" fill="#1e1e1e" stroke="#fbbf24" strokeWidth="2"
-                                 className="cursor-grab hover:scale-150 transition-transform" onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setActiveDrag({type: 'hIn', index: i}); }} />
-                            </g>
-                          )}
-                          {isSelected && p.hOut && (
-                            <g>
-                              <line x1={px} y1={py} x2={px + p.hOut.dx * 100} y2={py - p.hOut.dy * 100} stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2,2" />
-                              <circle cx={px + p.hOut.dx * 100} cy={py - p.hOut.dy * 100} r="4.5" fill="#1e1e1e" stroke="#fbbf24" strokeWidth="2"
-                                 className="cursor-grab hover:scale-150 transition-transform" onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setActiveDrag({type: 'hOut', index: i}); }} />
-                            </g>
-                          )}
-                          <circle cx={px} cy={py} r="15" fill="transparent" className="cursor-pointer"
-                            onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setSelectedPoint(i); setActiveDrag({type: 'point', index: i}); }} />
-                          <circle cx={px} cy={py} r={activeDrag?.index === i && activeDrag?.type === 'point' ? "7" : "4"} 
-                            fill={isSelected ? "#fbbf24" : "#fff"} className="transition-all pointer-events-none" />
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
-                <p className="mt-2 text-[11px] text-slate-500 text-center">Setiap ketukan musik masuk, pergerakan kamera dan grafik Speed Graph akan berganti secara mandiri!</p>
-              </div>
-
-              <div className="mt-2 bg-[#121212] border border-[#333] rounded-xl shadow-[inset_0_0_20px_rgba(0,0,0,1)] relative h-28 flex flex-col justify-end group overflow-hidden">
-                 <div className="absolute top-3 left-3 flex items-center gap-2 z-10 bg-black/50 px-2 py-1 rounded-md backdrop-blur-md border border-white/5">
-                    <span className={`w-2 h-2 rounded-full transition-colors ${isPlayingAudio ? 'bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]' : 'bg-slate-600'}`}></span>
-                    <span className="text-[9px] font-bold text-slate-300 tracking-widest">LIVE AUDIO EQ</span>
-                 </div>
-                 <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px] opacity-20 pointer-events-none"></div>
-                 
-                 <canvas ref={canvasEqRef} width={600} height={120} className="w-full h-full opacity-90 px-2 pb-1" />
-              </div>
-
-            </div>
-          </div>
-
-          <div className="w-full max-w-5xl bg-[#151515] border border-[#333] rounded-xl p-4 shadow-lg">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300 mb-4 border-b border-[#333] pb-2">Project Media Pool</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="col-span-1 flex flex-col gap-2">
-                 <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-4 cursor-pointer hover:border-purple-500 transition-colors bg-[#0f0f0f] overflow-hidden relative">
-                    {isAnalyzing ? (
-                      <div className="flex flex-col items-center">
-                         <Loader2 size={24} className="text-purple-500 animate-spin mb-2 flex-shrink-0" />
-                         <span className="text-[9px] text-purple-400 font-bold">Mengekstrak Suara...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <Music size={24} className={audioFile ? "text-purple-500 mb-2 flex-shrink-0" : "text-slate-500 mb-2 flex-shrink-0"} />
-                        <p className="text-xs font-bold text-center truncate w-full px-2" title={audioFile ? audioFile.name : "Upload Musik atau Video"}>
-                          {audioFile ? audioFile.name : "1. Upload Audio/Video"}
-                        </p>
-                        {!audioFile && <p className="text-[9px] text-slate-500 text-center mt-1 px-1 leading-tight">Bisa pakai file video, akan diambil suaranya saja.</p>}
-                      </>
-                    )}
-                    {/* Input tanpa onClick yang memotong proses */}
-                    <input type="file" accept="audio/*,video/*" className="hidden" onChange={handleAudioUpload} />
-                 </label>
-              </div>
-
-              <div className="col-span-1 md:col-span-2 flex flex-col gap-2">
-                <div className="flex gap-2 h-full">
-                  <label className="w-24 flex-shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-[#444] rounded-lg p-2 cursor-pointer hover:border-blue-500 transition-colors bg-[#0f0f0f]">
-                     <Upload size={20} className="text-blue-500 mb-1" />
-                     <p className="text-[10px] font-bold text-center leading-tight">2. Upload<br/>Foto/Video</p>
-                     {/* Input tanpa onClick yang memotong proses */}
-                     <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMediaUpload} />
-                  </label>
-                  
-                  <div className="flex-1 flex overflow-x-auto gap-2 p-1 snap-x scrollbar-thin scrollbar-thumb-[#444] scrollbar-track-transparent">
-                    {mediaFiles.map((media, i) => (
-                      <div key={i} className="relative w-16 h-20 flex-shrink-0 snap-start group" onClick={() => setCurrentMediaIndex(i)}>
-                        {media.type === 'video' ? (
-                            <video src={media.url} muted playsInline preload="metadata" className={`w-full h-full object-cover rounded cursor-pointer pointer-events-none ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} />
-                        ) : (
-                            <img src={media.url} className={`w-full h-full object-cover rounded cursor-pointer pointer-events-none ${safeMediaIndex === i ? 'border-2 border-red-500' : 'border border-[#333]'}`} alt="thumb"/>
-                        )}
-                        {media.type === 'video' && <div className="absolute top-1 left-1 bg-blue-600/80 rounded-sm px-1"><Video size={8} /></div>}
-                        <span className="absolute bottom-1 right-1 bg-black/70 text-[9px] px-1 rounded pointer-events-none">{i+1}</span>
-                        <button type="button" onClick={(e) => {e.stopPropagation(); removeMedia(i);}} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-10">×</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-1 flex items-center justify-center">
-                 <button 
-                    type="button"
-                    onClick={() => handlePlaySequence()}
-                    disabled={mediaFiles.length === 0 || !audioUrl || isRecording}
-                    className={`w-full py-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all shadow-lg ${
-                      mediaFiles.length > 0 && audioUrl 
-                        ? isPlayingAudio 
-                            ? 'bg-red-600 hover:bg-red-700 text-white' 
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/25'
-                        : 'bg-[#222] text-slate-500 cursor-not-allowed border border-[#333]'
-                    }`}
-                 >
-                    <div className={!isPlayingAudio ? 'hidden' : 'block w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin'}></div>
-                    <span className="font-bold text-[13px] tracking-wide text-center">
-                      {isPlayingAudio ? 'MEMUTAR SEQUENCE...' : '3. PREVIEW AUDIO SEQUENCE'}
-                    </span>
-                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Melakukan render aplikasi React ke dalam div #root
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080b12"><title>AILABS Auto Motion — Video Caption & B-roll</title>
+<style>
+:root{color-scheme:dark;--bg:#080b0a;--panel:#111713;--line:#29372e;--muted:#9aa89d;--txt:#f4f7f4;--violet:#c8f34a;--cyan:#d8ff5a;--green:#a9ed58}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -15%,#25381e 0,transparent 42%),var(--bg);color:var(--txt);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}button,input,select{font:inherit}button{color:var(--txt);cursor:pointer;border:1px solid #354258;background:#192334;border-radius:10px;padding:9px 12px}button:hover{border-color:var(--violet)}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:linear-gradient(120deg,#d9ff55,#a6e93b);color:#11170a;border:0;font-weight:800}.app{max-width:1500px;margin:auto;padding:17px}.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:15px}.brand{display:flex;align-items:center;gap:12px}.logo{height:46px;width:112px;min-width:112px;border-radius:10px;overflow:hidden;background:transparent;display:flex;align-items:center;justify-content:center;gap:5px;color:#fff;font-weight:850;letter-spacing:-.04em}.logo-wordmark .logo-name{font-size:22px;line-height:1}.logo-wordmark .logo-pro{font-size:10px;letter-spacing:.12em;writing-mode:vertical-rl;transform:rotate(180deg);border-left:1px solid #fff;padding-left:4px;line-height:1.1}.brand h1{font-size:19px;margin:0}.sub{font-size:11px;color:var(--muted)}.eyebrow{font-size:10px;color:var(--cyan);font-weight:850;letter-spacing:1.7px;text-transform:uppercase}.actions{display:flex;gap:8px;flex-wrap:wrap}.layout{display:grid;grid-template-columns:minmax(0,1fr) 355px;gap:14px;align-items:start}.panel{background:linear-gradient(160deg,#111927,#0d131d);border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 12px 35px #0002}.head{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.head b{font-size:13px}.panelbody{padding:14px}.stage{min-height:390px;padding:16px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#182134 0,#090d14 65%)}.canvaswrap{position:relative;width:min(100%,400px);aspect-ratio:9/16;max-height:65vh;border-radius:10px;overflow:hidden;border:1px solid #3b4760;background:#07090e;box-shadow:0 15px 60px #0008}.canvaswrap canvas{width:100%;height:100%;display:block;object-fit:contain}.placeholder{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:24px;color:#aab7cc;pointer-events:none}.placeholder strong{font-size:22px;color:white}.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--line)}.time{font-variant-numeric:tabular-nums;color:#dbe2f2;font-size:12px}.grow{flex:1}.timeline{padding:0 13px 14px}.ruler{display:flex;justify-content:space-between;color:#75839a;font-size:10px;padding:0 1px 5px}.trackrow{display:grid;grid-template-columns:60px minmax(0,1fr);gap:8px;align-items:center;margin:8px 0}.trackname{font-size:10px;color:#8e9bb1}.track{height:36px;border:1px solid #303d52;border-radius:7px;position:relative;overflow:hidden;background:repeating-linear-gradient(90deg,#111a28 0,#111a28 39px,#1b2739 40px,#1b2739 41px)}.clip{position:absolute;inset:3px 0;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;background:linear-gradient(90deg,#6545d8bb,#278fa9bb);border:1px solid #8d7bff}.textclip{background:linear-gradient(90deg,#a43e9bbb,#6136b9bb);border-color:#e18bff}.brollclip{background:linear-gradient(90deg,#126e75,#1d976b);border-color:#62e6c3}.playhead{position:absolute;top:0;bottom:0;width:2px;background:#ff777f;z-index:5;pointer-events:none}.side{display:grid;gap:12px}.field{display:grid;gap:6px;margin-bottom:12px}.field:last-child{margin-bottom:0}.field label{font-size:11px;color:#b4c0d3}.field input[type=text],.field select,.field textarea,.field input[type=number],select{width:100%;border:1px solid #303d52;border-radius:9px;padding:9px;background:#090f18;color:var(--txt);outline:none}.field textarea{resize:vertical;min-height:58px}.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--violet)}input[type=range]{width:100%;accent-color:var(--violet)}input[type=color]{width:42px;height:35px;border:1px solid #344157;border-radius:8px;background:#0a1019;padding:3px}.row{display:flex;align-items:center;gap:8px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}.value{font-size:10px;color:#aab8ce}.presetgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.preset{min-height:63px;text-align:left;padding:8px 7px}.preset .emoji{font-size:17px;display:block}.preset b{display:block;font-size:10px;line-height:1.25}.preset small{font-size:9px;color:#9aa9bf}.preset.active{border-color:#c8f34a;background:linear-gradient(140deg,#2a351c,#151b17);box-shadow:inset 0 0 0 1px #c8f34a33}.filebox{border:1px dashed #3c4a61;border-radius:10px;padding:11px;background:#0a111c}.filebox button{width:100%}.note{font-size:10px;color:#8290a6;line-height:1.5}.status{min-height:18px;color:#aebbd0;font-size:11px}.filepick{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--txt);cursor:pointer;border:1px solid #3b493b;background:#18211a;border-radius:10px;padding:9px 12px;font:inherit;text-decoration:none;min-height:40px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.filepick:hover{border-color:var(--violet)}.filepick-wide{display:flex;width:100%;font-weight:600}.fileinput{display:block;width:100%;margin-top:8px;color:var(--muted);font-size:11px;min-height:40px;cursor:pointer;position:relative;z-index:2;touch-action:manipulation}.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #334158;border-radius:20px;padding:4px 8px;font-size:10px;color:#c1cbe0;background:#101b2a}.badge{font-size:10px;color:#a7f3d0;background:#103329;border:1px solid #1e5947;border-radius:7px;padding:4px 7px}.divider{height:1px;background:var(--line);margin:12px 0}.warn{color:#ffcf86}.smallbtn{padding:6px 8px;font-size:11px}.exportbar{display:grid;grid-template-columns:1fr 1fr;gap:8px}.footer{color:#64728a;text-align:center;font-size:10px;padding:18px}.help{padding:9px 10px;border-radius:9px;background:#101c2a;color:#aebbd0;font-size:10px;line-height:1.5}
+@media(max-width:980px){.layout{grid-template-columns:1fr}.side{grid-template-columns:repeat(2,minmax(0,1fr))}.stage{min-height:300px}.canvaswrap{max-height:56vh;width:min(100%,330px)}}@media(max-width:620px){html,body{max-width:100%;overflow-x:hidden}.app{width:100%;max-width:100%;padding:9px;overflow-x:clip}.brand h1{font-size:16px}.actions{width:100%}.actions button{flex:1;font-size:11px;padding:9px 6px}.side{grid-template-columns:1fr}.stage{min-height:260px;padding:10px}.canvaswrap{width:auto;height:min(65vh,560px);aspect-ratio:9/16;max-height:65vh;max-width:100%;flex:0 1 auto}.panelbody{padding:11px}.head{padding:11px}.presetgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.trackrow{grid-template-columns:48px minmax(0,1fr)}}
+ 
+.quickbar{margin:0 0 14px}
+.quickgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:13px}
+.quickblock{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#0b100d}
+.quicklabel{display:flex;align-items:center;gap:8px;font-weight:850;letter-spacing:.08em;font-size:11px;margin-bottom:10px;color:#eff7e7}
+.stepnum{display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#28351c;color:#d9ff55;font-size:10px}
+.quickchoices{display:flex;gap:6px;flex-wrap:wrap}
+.modechoice{flex:1;min-width:78px;min-height:42px;padding:8px 9px;background:#18211a;border:1px solid #344336;border-radius:9px;font-size:12px;font-weight:750;color:#d7e1d6}
+.modechoice.active{background:#d9ff55;color:#141a0a;border-color:#d9ff55;box-shadow:0 0 0 2px #d9ff5520}
+.quicknote{margin:9px 0 0;color:var(--muted);font-size:11px;line-height:1.45}
+.brand .eyebrow{color:#c8f34a}
+.logo{color:#fff;background:#101b2a}.logo img{object-fit:contain;padding:2px}
+.panel{border-color:#29372e;background:linear-gradient(160deg,#111713,#0d120f)}
+button:hover,.filepick:hover{border-color:#c8f34a}
+.advanced-panel>summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none;user-select:none}
+.advanced-panel>summary::-webkit-details-marker{display:none}
+.advanced-panel>summary:after{content:'＋';font-weight:900;color:#d9ff55;font-size:18px}
+.advanced-panel[open]>summary:after{content:'−'}
+.advanced-panel>summary .pill{margin-left:auto}
+@media(max-width:620px){.quickgrid{grid-template-columns:1fr;padding:10px;gap:9px}.quickblock{padding:10px}.quicklabel{margin-bottom:8px}.modechoice{font-size:12px;min-height:40px}.quicknote{font-size:10px}.actions .filepick{flex:1;font-size:11px;padding:9px 6px}.actions button{flex:1}}
+.smart-plan{margin:0 0 14px;border-color:#43513b}.smartplanbody{padding:13px}#smartBrollSummary{margin:0 0 10px;color:#e2ebdd;font-size:12px;line-height:1.5}.planrow{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px 0;border-top:1px solid #29372e}.plantime{color:#d9ff55;font-size:11px;font-weight:850}.planrow b{display:block;font-size:12px}.planrow small{display:block;margin-top:3px;color:#9aa89d;font-size:10px}.plansource{font-size:9px;font-weight:800;color:#b6c4b3}.planempty{font-size:11px;color:#9aa89d;padding:7px 0}.smartfoot{border-top:1px solid #29372e;margin-top:8px;padding-top:9px;color:#8f9b90;font-size:10px;line-height:1.45}
+</style></head><body><div class="app">
+<header class="top"><div class="brand"><div class="logo logo-wordmark" aria-label="Ailabs PRO"><span class="logo-name">Ailabs</span><span class="logo-pro">PRO</span></div><div><div class="eyebrow">AILABS CREATOR TOOLS</div><h1>Auto Motion Studio</h1><div class="sub">Caption presets · Motion backgrounds · Auto B-roll</div></div></div><div class="actions"><label id="videoBtn" class="filepick" for="videoFile">＋ Upload Video</label><label id="brollBtn" class="filepick" for="brollFiles">▧ Add B-roll clips</label><label id="audioBtn" class="filepick" for="audioFile">♫ Add Music</label><button id="playBtn" class="primary">▶ Preview</button><button id="exportBtn">⇩ Export WebM</button></div></header>
+<section class="quickbar panel" id="quickControls">
+<div class="head"><b>Quick Studio</b><span class="pill">Kontrol utama</span></div>
+<div class="quickgrid">
+<div class="quickblock"><div class="quicklabel"><span class="stepnum">01</span><span>B-ROLL</span></div><div class="quickchoices" role="group" aria-label="Mode B-roll"><button type="button" class="modechoice active" data-broll-mode="auto">⚡ Otomatis</button><button type="button" class="modechoice" data-broll-mode="manual">Manual</button><button type="button" class="modechoice" data-broll-mode="off">Off</button></div><p class="quicknote" id="brollQuickStatus">Otomatis: sisipan dari video utama, tanpa upload tambahan.</p></div>
+<div class="quickblock"><div class="quicklabel"><span class="stepnum">02</span><span>CAPTION</span></div><div class="quickchoices" role="group" aria-label="Mode caption"><button type="button" class="modechoice active" id="captionManualBtn">✍ Manual</button><button type="button" class="modechoice" id="captionAutoBtn">🎙 Auto Caption</button></div><p class="quicknote" id="captionQuickStatus">Manual: tulis teks sendiri. Auto Caption mencoba membuat subtitle dari ucapan video.</p></div>
+</div>
+</section>
+<section class="panel smart-plan" id="smartBrollStudio"><div class="head"><b>AI B-roll Studio · Smart Auto</b><span class="pill">Realistic · Balanced</span></div><div class="smartplanbody"><div class="field" style="margin:0 0 12px"><label for="brollTheme">Tema utama video (opsional)</label><input id="brollTheme" type="text" maxlength="180" placeholder="Contoh: tutorial membuat video AI dengan Gemini dan Flow" autocomplete="off"><div class="note">Opsional. Jika dikosongkan, aplikasi otomatis membaca konteks dari caption/transkrip video untuk mencari B-roll yang relevan.</div></div><p id="smartBrollSummary">Smart Auto menyusun sisipan dari video utama; caption dapat membantu memilih momen.</p><div id="smartBrollPlan"><div class="planempty">Unggah video lalu jalankan Auto Caption untuk pencarian kontekstual.</div></div><div class="row" style="margin-top:10px;flex-wrap:wrap"><button type="button" id="findBrollBtn" class="primary">🔎 Cari B-roll gratis</button><span class="note" id="stockBrollCount">Footage stok dari Pixabay · gratis</span></div><div id="stockBrollCredits" class="note" style="margin-top:8px">Sumber footage: <a href="https://pixabay.com/videos/" target="_blank" rel="noopener">Pixabay Videos</a>.</div><div class="smartfoot">Smart Auto mencari video stok Pixabay berdasarkan konteks ucapan/caption lalu menyisipkannya sebagai cutaway. Koneksi dan ketersediaan footage bergantung pada API Pixabay.</div></div></section><div class="layout"><main class="panel"><div class="head"><b>▣ &nbsp; Live Preview</b><div class="row"><span class="badge" id="readyBadge">READY</span><span class="pill" id="formatPill">9:16 · 720 × 1280</span></div></div><div class="stage"><div class="canvaswrap"><canvas id="canvas" width="720" height="1280"></canvas><div id="placeholder" class="placeholder"><strong>Upload your video</strong><span>Caption, animated background & B-roll</span><span class="sub">Preview appears here</span></div></div></div>
+<div class="transport"><button id="backBtn">− 1s</button><button id="playSmall" class="primary">▶</button><button id="forwardBtn">+ 1s</button><span class="time" id="timeLabel">00:00 / 00:10</span><span class="grow"></span><label class="sub">Duration <select id="duration" style="width:auto;background:#0a1019;color:white;border:1px solid #303d52;border-radius:7px;padding:5px"><option>10</option><option>15</option><option>20</option><option>30</option><option>45</option><option>60</option></select> sec</label></div>
+<div class="timeline"><div class="ruler"><span>00:00</span><span>25%</span><span>50%</span><span>75%</span><span id="endLabel">00:10</span></div><div class="trackrow"><span class="trackname">VIDEO</span><div class="track" id="videoTrack"><div class="clip" id="clip">MAIN VIDEO</div><div class="playhead" id="head1"></div></div></div><div class="trackrow"><span class="trackname">CAPTION</span><div class="track" id="captionTrack"><div class="clip textclip" id="textClip">CAPTION STYLE</div><div class="playhead" id="head2"></div></div></div><div class="trackrow"><span class="trackname">B-ROLL</span><div class="track" id="brollTrack"><div class="clip brollclip" id="brollClip">AUTO INSERT OFF</div><div class="playhead" id="head3"></div></div></div><div class="note">Klik track untuk scrub preview. B-roll otomatis memakai klip yang kamu upload sendiri.</div></div></main>
+<aside class="side">
+<section class="panel"><div class="head"><b>01 &nbsp; Media & Output</b><span class="pill" id="mediaStatus">No video</span></div><div class="panelbody"><div class="filebox"><label id="chooseVideo" class="filepick filepick-wide" for="videoFile">Pilih video utama</label><div class="note" id="videoName" style="margin-top:7px">MP4 / WebM</div></div><input class="fileinput" id="videoFile" type="file" accept="video/*"><div class="field" style="margin-top:10px"><div class="filebox"><label id="chooseBroll" class="filepick filepick-wide" for="brollFiles">Pilih beberapa klip B-roll</label><div class="note" id="brollName" style="margin-top:7px">Opsional · pilih banyak file sekaligus</div></div><input class="fileinput" id="brollFiles" type="file" accept="video/*" multiple></div><div class="field"><div class="filebox"><label id="chooseAudio" class="filepick filepick-wide" for="audioFile">Pilih musik / audio</label><div class="note" id="audioName" style="margin-top:7px">Opsional</div></div><input class="fileinput" id="audioFile" type="file" accept="audio/*"></div><div class="grid2"><div class="field"><label>Rasio</label><select id="ratio"><option value="9:16">9:16 Reels</option><option value="16:9">16:9 YouTube</option><option value="1:1">1:1 Square</option></select></div><div class="field"><label>Durasi output</label><select id="durationMirror"><option value="10">10 detik</option><option value="15">15 detik</option><option value="20">20 detik</option><option value="30">30 detik</option><option value="45">45 detik</option><option value="60">60 detik</option></select></div></div></div></section>
+<details class="panel advanced-panel"><summary class="head"><b>02 &nbsp; Preset Caption (18 gaya)</b><span class="pill">Opsional</span></summary><div class="panelbody"><div class="presetgrid" id="captionPresets">
+<button class="preset active" data-caption="viral"><span class="emoji">🔥</span><b>01 Viral Bold</b><small>Impact + shadow</small></button><button class="preset" data-caption="highlight"><span class="emoji">🟨</span><b>02 Word Highlight</b><small>Highlight words</small></button><button class="preset" data-caption="karaoke"><span class="emoji">🎤</span><b>03 Karaoke</b><small>Active word</small></button><button class="preset" data-caption="clean"><span class="emoji">▤</span><b>04 Subtitle Clean</b><small>Simple subtitle</small></button><button class="preset" data-caption="neon"><span class="emoji">💡</span><b>05 Neon Glow</b><small>Glowing text</small></button><button class="preset" data-caption="cinema"><span class="emoji">🎬</span><b>06 Cinematic</b><small>Letter spacing</small></button><button class="preset" data-caption="typewriter"><span class="emoji">⌨</span><b>07 Typewriter</b><small>Character reveal</small></button><button class="preset" data-caption="bounce"><span class="emoji">⬆</span><b>08 Pop Bounce</b><small>Spring entrance</small></button><button class="preset" data-caption="glitch"><span class="emoji">⚡</span><b>09 Glitch</b><small>RGB split</small></button><button class="preset" data-caption="depth"><span class="emoji">🧊</span><b>10 3D Depth</b><small>Layered shadow</small></button><button class="preset" data-caption="comic"><span class="emoji">💥</span><b>11 Comic Impact</b><small>Impact burst</small></button><button class="preset" data-caption="minimal"><span class="emoji">○</span><b>12 Minimal White</b><small>Light & quiet</small></button><button class="preset" data-caption="gold"><span class="emoji">✨</span><b>13 Luxury Gold</b><small>Gold tone</small></button><button class="preset" data-caption="gradient"><span class="emoji">🌈</span><b>14 Gradient Text</b><small>Color gradient</small></button><button class="preset" data-caption="box"><span class="emoji">▰</span><b>15 Box Caption</b><small>Solid label</small></button><button class="preset" data-caption="split"><span class="emoji">↕</span><b>16 Split Lines</b><small>Two-line layout</small></button><button class="preset" data-caption="kinetic"><span class="emoji">〰</span><b>17 Kinetic Type</b><small>Moving text</small></button><button class="preset" data-caption="story"><span class="emoji">📱</span><b>18 Social Story</b><small>Story-style card</small></button></div></div></details><section class="panel"><div class="head"><b>03 &nbsp; Caption Content</b><span class="pill">Live</span></div><div class="panelbody"><div class="field"><label>Teks caption</label><textarea id="captionText" maxlength="220">CERITAMU LAYAK DIDENGAR</textarea><div class="note">Masukkan kalimat sendiri. Ini adalah caption overlay, bukan transkripsi suara otomatis.</div></div><div class="grid2"><div class="field"><label>Ukuran teks</label><input id="fontSize" type="range" min="28" max="100" value="58"><span class="value" id="fontVal">58 px</span></div><div class="field"><label>Posisi vertikal</label><input id="textY" type="range" min="15" max="88" value="72"><span class="value" id="textYVal">72%</span></div></div><div class="grid2"><div class="field"><label>Warna teks</label><input id="textColor" type="color" value="#ffffff"></div><div class="field"><label>Animasi masuk</label><select id="textAnim"><option value="pop">Pop</option><option value="rise">Rise</option><option value="slide">Slide</option><option value="fade">Fade</option><option value="type">Typewriter</option><option value="none">None</option></select></div></div><div class="field"><label>Caption mulai (detik)</label><input id="captionStart" type="number" min="0" max="59" value="0"></div></div></section>
+<details class="panel advanced-panel"><summary class="head"><b>04 &nbsp; Motion Background</b><span class="pill">Advanced</span></summary><div class="panelbody"><div class="field"><label>Gaya latar bergerak</label><select id="bgStyle"><option value="auto">Auto accent dari warna preset</option><option value="lines">Garis diagonal</option><option value="grid">Grid futuristik</option><option value="waves">Gelombang</option><option value="particles">Partikel bercahaya</option><option value="rings">Cincin / radar</option><option value="equalizer">Equalizer bars</option><option value="slashes">Slash neon</option><option value="none">Tanpa grafis tambahan</option></select></div><div class="field"><label>Intensitas background <span id="bgIntensityVal" class="value">45%</span></label><input id="bgIntensity" type="range" min="0" max="100" value="45"></div><div class="field"><label>Transparansi overlay <span id="bgOpacityVal" class="value">35%</span></label><input id="bgOpacity" type="range" min="0" max="100" value="35"></div><div class="help">Efek garis/gelombang dirender di atas video dengan transparansi agar subjek utama tetap terlihat.</div></div></details><details class="panel advanced-panel"><summary class="head"><b>05 &nbsp; B-roll Settings</b><span class="pill">Advanced</span></summary><div class="panelbody"><div class="field"><label>Mode B-roll</label><select id="brollMode"><option value="auto" selected>Otomatis · sisipan dari video utama</option><option value="manual">Manual · pakai klip yang diunggah</option><option value="overlay">Picture-in-picture</option><option value="cutaway">Full-frame cutaway</option><option value="off">Nonaktif</option></select></div><div class="grid2"><div class="field"><label>Mulai dari detik</label><input id="brollStart" type="number" min="0" max="59" value="3"></div><div class="field"><label>Interval (detik)</label><input id="brollInterval" type="number" min="2" max="20" value="5"></div></div><div class="grid2"><div class="field"><label>Durasi klip (detik)</label><input id="brollDuration" type="number" min="1" max="8" value="2"></div><div class="field"><label>Ukuran overlay</label><select id="brollSize"><option value="38">38% inset</option><option value="48">48% inset</option><option value="60">60% inset</option></select></div></div><div class="help" id="brollHelp">Otomatis aktif: tanpa upload B-roll tambahan, aplikasi membuat sisipan close-up/crop dari video utama setiap interval. Jika ingin footage berbeda, kamu bisa tetap menambahkan klip sendiri.</div></div></details><details class="panel advanced-panel"><summary class="head"><b>06 &nbsp; Export Settings</b><span class="pill">WebM</span></summary><div class="panelbody"><div class="grid2"><div class="field"><label>Resolusi</label><select id="resolution"><option value="720">720p</option><option value="1080">1080p</option></select></div><div class="field"><label>Frame rate</label><select id="fps"><option value="30">30 FPS</option><option value="24">24 FPS</option><option value="60">60 FPS</option></select></div></div><button id="exportSide" class="primary" style="width:100%">⇩ Render final video</button><div class="status" id="status" style="margin-top:9px">Upload video untuk mulai.</div><div class="note warn" style="margin-top:7px">Browser export: WebM, bukan MP4. Render real-time; jangan tutup tab.</div></div></details></aside></div><div class="footer">AILABS Auto Motion · File diproses lokal di browser · Upload B-roll sendiri untuk sisipan otomatis</div></div>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id),canvas=$('canvas'),ctx=canvas.getContext('2d');
+let video=null,audio=null,broll=[],stockBroll=[],stockBrollBusy=false,stockBrollError='',videoURL=null,audioURL=null,autoBroll=null,autoBrollURL=null,playing=false,raf=0,clock=0,base=0,duration=10,exporting=false,captionMode='manual',subtitleCues=[],captionBusy=false,asrPromise=null,smartBrollPlan=[];
+const captionNames={viral:'VIRAL BOLD',highlight:'WORD HIGHLIGHT',karaoke:'KARAOKE',clean:'SUBTITLE CLEAN',neon:'NEON GLOW',cinema:'CINEMATIC',typewriter:'TYPEWRITER',bounce:'POP BOUNCE',glitch:'GLITCH',depth:'3D DEPTH',comic:'COMIC IMPACT',minimal:'MINIMAL WHITE',gold:'LUXURY GOLD',gradient:'GRADIENT TEXT',box:'BOX CAPTION',split:'SPLIT LINES',kinetic:'KINETIC TYPE',story:'SOCIAL STORY'};
+let captionPreset='viral';
+const settings=()=>({text:$('captionText').value.trim(),font:+$('fontSize').value,y:+$('textY').value/100,color:$('textColor').value,anim:$('textAnim').value,start:Math.max(0,+$('captionStart').value||0),preset:captionPreset,bg:$('bgStyle').value,bgI:+$('bgIntensity').value/100,bgO:+$('bgOpacity').value/100,brollMode:$('brollMode').value,brollStart:Math.max(0,+$('brollStart').value||0),brollInterval:Math.max(2,+$('brollInterval').value||5),brollDuration:Math.max(1,+$('brollDuration').value||2),brollSize:+$('brollSize').value/100,ratio:$('ratio').value});
+
+function safePixabayPageURL(item){
+ const url=String(item&&item.pageURL||'');
+ return url.startsWith('https://pixabay.com/')?url:'https://pixabay.com/videos/';
+}
+function syncQuickControls(){
+ const mode=$('brollMode').value;
+ document.querySelectorAll('[data-broll-mode]').forEach(b=>b.classList.toggle('active',b.dataset.brollMode===mode));
+ $('brollQuickStatus').textContent=mode==='auto'?(stockBroll.length?'Auto: '+stockBroll.length+' klip Pixabay siap; sisipan mengikuti caption.':'Auto: caption bisa memicu pencarian footage Pixabay gratis.') :mode==='manual'?(broll.length?'Manual: memakai '+broll.length+' klip yang kamu upload.':'Manual: tekan Add B-roll clips untuk memilih klip.'):'B-roll nonaktif.';
+ if($('smartBrollSummary'))$('smartBrollSummary').textContent=mode==='auto'?'Smart Auto · '+smartBrollPlan.length+' sisipan terjadwal · '+(stockBroll.length?stockBroll.length+' footage Pixabay siap.':'footage stok akan dicari berdasarkan konteks caption.'):'Mode '+mode+'.';
+ if($('smartBrollPlan'))$('smartBrollPlan').innerHTML=smartBrollPlan.slice(0,6).map((p,i)=>{
+  const item=stockBroll.find(x=>p.query&&x.query===p.query)||stockBroll[i%Math.max(1,stockBroll.length)]||null;
+  const source=item?'<a href="'+safePixabayPageURL(item)+'" target="_blank" rel="noopener">PIXABAY ↗</a>':'MENUNGGU FOOTAGE';
+  return '<div class="planrow"><span class="plantime">'+fmt(p.start)+'</span><span><b>'+p.kind+'</b><small>'+p.reason+'</small></span><span class="plansource">'+source+'</span></div>';
+ }).join('')||'<div class="planempty">Pilih video atau buat Auto Caption untuk menyusun rencana.</div>';
+ if($('stockBrollCount'))$('stockBrollCount').textContent=stockBrollBusy?'Mencari footage…':stockBroll.length?stockBroll.length+' klip ditemukan · Pixabay':stockBrollError?'Pencarian terakhir gagal. Coba lagi.':'Footage stok dari Pixabay · gratis';
+ if($('stockBrollCredits'))$('stockBrollCredits').innerHTML=stockBroll.length?'Sumber footage: <a href="https://pixabay.com/videos/" target="_blank" rel="noopener">Pixabay Videos</a>. Tautan tiap sumber ada pada jadwal di atas.':'Sumber footage: <a href="https://pixabay.com/videos/" target="_blank" rel="noopener">Pixabay Videos</a>.';
+ if($('findBrollBtn')){ $('findBrollBtn').disabled=stockBrollBusy; $('findBrollBtn').textContent=stockBrollBusy?'⏳ Mencari footage…':'🔎 Cari B-roll gratis'; }
+ $('captionManualBtn').classList.toggle('active',captionMode==='manual');
+ $('captionAutoBtn').classList.toggle('active',captionMode==='auto');
+ $('captionQuickStatus').textContent=captionMode==='auto'?(subtitleCues.length?'Auto Caption aktif · '+subtitleCues.length+' cue subtitle.':'Transkripsi otomatis dipilih.'):'Manual: tulis teks sendiri. Auto Caption mengunduh model Whisper sekali saat pertama kali digunakan dan memproses audio di browser.';
+}
+
+function setCaptionMode(mode){
+ captionMode=mode;
+ $('captionText').readOnly=mode==='auto';
+ syncQuickControls();draw(base);
+ if(mode==='manual')message('Mode caption manual aktif.');
+}
+function resampleAudio(chunks,sourceRate,targetRate){
+ let total=0;for(const x of chunks)total+=x.length;
+ if(!total)return new Float32Array(0);
+ const merged=new Float32Array(total);let at=0;for(const x of chunks){merged.set(x,at);at+=x.length}
+ if(sourceRate===targetRate)return merged;
+ const outLength=Math.floor(merged.length*targetRate/sourceRate),out=new Float32Array(outLength),ratio=sourceRate/targetRate;
+ for(let i=0;i<outLength;i++){const a=Math.floor(i*ratio),b=Math.min(merged.length,Math.floor((i+1)*ratio));let sum=0;for(let j=a;j<Math.max(a+1,b);j++)sum+=merged[Math.min(j,merged.length-1)];out[i]=sum/Math.max(1,b-a)}
+ return out;
+}
+async function captureVideoAudio(url){
+ const AudioCtx=window.AudioContext||window.webkitAudioContext;
+ if(!AudioCtx)throw new Error('Browser tidak mendukung pemrosesan audio untuk Auto Caption.');
+ const ac=new AudioCtx(),probe=document.createElement('video');
+ probe.preload='auto';probe.playsInline=true;probe.setAttribute('playsinline','');probe.style.cssText='position:fixed;width:2px;height:2px;left:-20px;top:0;opacity:.001;pointer-events:none';document.body.appendChild(probe);
+ const chunks=[];let sampleCount=0,processor,source,silent;
+ try{
+  const metadata=new Promise((resolve,reject)=>{probe.onloadedmetadata=resolve;probe.onerror=()=>reject(new Error('File video tidak dapat dibaca untuk transkripsi.'))});
+  const ended=new Promise((resolve,reject)=>{probe.onended=resolve;probe.onerror=()=>reject(new Error('Gagal membaca audio dari video.'))});
+  source=ac.createMediaElementSource(probe);processor=ac.createScriptProcessor(4096,2,1);silent=ac.createGain();silent.gain.value=0;
+  processor.onaudioprocess=e=>{const input=e.inputBuffer,len=input.length,left=input.getChannelData(0),right=input.numberOfChannels>1?input.getChannelData(1):left,mono=new Float32Array(len);for(let i=0;i<len;i++)mono[i]=(left[i]+right[i])*.5;chunks.push(mono);sampleCount+=len};
+  source.connect(processor);processor.connect(silent);silent.connect(ac.destination);
+  probe.src=url;probe.load();
+  const playPromise=probe.play();
+  await ac.resume();await metadata;await playPromise;await ended;
+  const rate=ac.sampleRate;source.disconnect();processor.disconnect();silent.disconnect();
+  const samples=resampleAudio(chunks,rate,16000);
+  if(!samples.length||sampleCount<rate*.15)throw new Error('Tidak ditemukan audio yang bisa dibaca di video ini.');
+  let energy=0;for(let i=0;i<samples.length;i+=Math.max(1,Math.floor(samples.length/10000)))energy+=Math.abs(samples[i]);
+  if(energy<.001)throw new Error('Audio video kosong atau tidak terbaca. Pastikan video memiliki suara.');
+  return samples;
+ }finally{
+  probe.pause();probe.removeAttribute('src');probe.load();if(probe.parentNode)probe.parentNode.removeChild(probe);
+  if(ac.state!=='closed')await ac.close().catch(()=>{});
+ }
+}
+function buildCaptionCues(result){
+ const words=(result.chunks||[]).filter(c=>c&&c.text&&Array.isArray(c.timestamp)&&Number.isFinite(c.timestamp[0])).map(c=>({text:c.text.trim(),start:Math.max(0,c.timestamp[0]),end:Number.isFinite(c.timestamp[1])?c.timestamp[1]:c.timestamp[0]+.45})).filter(c=>c.text&&c.end>c.start);
+ const cues=[];let current=[];
+ const flush=()=>{if(!current.length)return;cues.push({start:current[0].start,end:Math.max(current[0].start+.25,current[current.length-1].end),text:current.map(x=>x.text).join(' ').replace(/\\s+/g,' ').trim()});current=[]};
+ for(const word of words){current.push(word);const span=word.end-current[0].start;if(current.length>=5||span>=2.4||/[.!?。！？]$/.test(word.text))flush()}
+ flush();return cues;
+}
+async function transcribeVideo(){
+ if(captionBusy)return;
+ if(!videoURL){message('Upload video utama terlebih dahulu sebelum Auto Caption.');return}
+ if(video&&Number.isFinite(video.duration)&&video.duration>180){message('Auto Caption lokal dibatasi untuk video maksimal 3 menit agar HP tidak kehabisan memori.');return}
+ captionBusy=true;$('captionAutoBtn').disabled=true;$('captionAutoBtn').textContent='Memproses…';
+ try{
+  message('Membaca audio video. Jangan tutup halaman…');
+  const samples=await captureVideoAudio(videoURL);
+  if(!asrPromise)asrPromise=(async()=>{
+   const lib=await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+   lib.env.allowLocalModels=false;lib.env.useBrowserCache=true;
+   if(lib.env.backends&&lib.env.backends.onnx&&lib.env.backends.onnx.wasm)lib.env.backends.onnx.wasm.numThreads=1;
+   return lib.pipeline('automatic-speech-recognition','Xenova/whisper-tiny',{progress_callback:p=>{if(p&&p.status==='progress'&&p.progress)message('Mengunduh model Auto Caption… '+Math.round(p.progress)+'%');else if(p&&p.status==='initiate')message('Menyiapkan model pengenal suara…')}});
+  })();
+  const transcriber=await asrPromise;
+  message('Mengenali ucapan dalam video…');
+  const result=await transcriber(samples,{chunk_length_s:30,stride_length_s:5,return_timestamps:'word'});
+  const cues=buildCaptionCues(result);
+  if(!cues.length)throw new Error('Model tidak menghasilkan timestamp subtitle. Coba video dengan ucapan yang jelas.');
+  subtitleCues=cues;$('captionText').value=(result.text||cues.map(c=>c.text).join(' ')).trim();buildSmartBrollPlan();
+  setCaptionMode('auto');draw(base);message('Auto Caption selesai · '+cues.length+' potongan subtitle. Mencari footage gratis…');
+  await searchStockBroll({silent:true});
+ }catch(err){
+  if(asrPromise)asrPromise=null;
+  message('Auto Caption gagal: '+(err&&err.message?err.message:String(err))+' Coba Chrome terbaru dan koneksi internet stabil.');
+ }finally{
+  captionBusy=false;$('captionAutoBtn').disabled=false;$('captionAutoBtn').textContent='🎙 Auto Caption';
+  syncQuickControls();
+ }
+}
+
+function fmt(v){v=Math.max(0,Math.floor(v));return String(Math.floor(v/60)).padStart(2,'0')+':'+String(v%60).padStart(2,'0')}
+function message(t){$('status').textContent=t}
+function updateUI(t){const p=Math.max(0,Math.min(1,t/duration));$('timeLabel').textContent=fmt(t)+' / '+fmt(duration);$('endLabel').textContent=fmt(duration);['head1','head2','head3'].forEach(id=>$(id).style.left=(p*100)+'%');$('clip').textContent=video?'MAIN VIDEO · '+($('videoFile').files[0]?.name||'Imported'):'MAIN VIDEO NOT LOADED';$('textClip').textContent=captionNames[captionPreset];$('textClip').style.right='0';$('brollClip').textContent=settings().brollMode==='off'?'B-ROLL OFF':settings().brollMode==='manual'?(broll.length?'MANUAL B-ROLL · '+broll.length+' CLIP(S)':'MANUAL · UPLOAD B-ROLL CLIPS'):video?'AUTO B-ROLL · AUTO-SELECTED CLIPS':'AUTO B-ROLL · WAITING FOR VIDEO';$('brollClip').style.right='0'}
+function resize(){const r=$('ratio').value;let w=720,h=1280;if(r==='16:9'){w=1280;h=720}else if(r==='1:1'){w=h=900}canvas.width=w;canvas.height=h;$('formatPill').textContent=r+' · '+w+' × '+h;draw(base)}
+function drawBackground(t,w,h,st){const mode=st.bg==='auto'?(st.preset==='gold'?'rings':st.preset==='neon'?'slashes':'lines'):st.bg;const alpha=st.bgO*(.25+st.bgI*.75);if(mode==='none'||alpha<=0)return;ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=st.preset==='gold'?'#f7d779':st.preset==='neon'||st.preset==='glitch'?'#61f4ff':'#b5a4ff';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=Math.max(1,w*.002);
+if(mode==='lines'||mode==='slashes'){ctx.translate(w/2,h/2);ctx.rotate(-.48);const gap=Math.max(24,w*.075),shift=(t*35*st.bgI)%gap;for(let x=-w*1.5+shift;x<w*1.5;x+=gap){ctx.beginPath();ctx.moveTo(x,-h*1.5);ctx.lineTo(x,h*1.5);ctx.stroke();if(mode==='slashes'){ctx.beginPath();ctx.moveTo(x+gap*.25,-h*.12);ctx.lineTo(x+gap*.65,h*.12);ctx.stroke()}}}
+else if(mode==='grid'){const gap=Math.max(28,w*.07),off=(t*14*st.bgI)%gap;for(let x=0;x<w;x+=gap){ctx.beginPath();ctx.moveTo(x+off,0);ctx.lineTo(x+off,h);ctx.stroke()}for(let y=0;y<h;y+=gap){ctx.beginPath();ctx.moveTo(0,y+off);ctx.lineTo(w,y+off);ctx.stroke()}}
+else if(mode==='waves'){for(let j=0;j<8;j++){ctx.beginPath();for(let x=0;x<=w;x+=8){const y=h*(.18+j*.09)+Math.sin(x/w*8+t*1.6+j*.55)*h*.018*st.bgI;if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}}
+else if(mode==='particles'){for(let i=0;i<65;i++){const x=((i*137.5+t*(9+i%5)*st.bgI*8)%(w+30))-15,y=((i*83.7+Math.sin(t+i)*18)%(h+30))-15,r=1+(i%4)*w*.0018;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}}
+else if(mode==='rings'){const cx=w*.5,cy=h*.5;for(let i=1;i<=10;i++){ctx.beginPath();ctx.arc(cx,cy,i*Math.min(w,h)*.055,0,Math.PI*2);ctx.stroke()}ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,h);ctx.moveTo(0,cy);ctx.lineTo(w,cy);ctx.stroke()}
+else if(mode==='equalizer'){const n=36,gap=w/n;for(let i=0;i<n;i++){const bh=(.025+(.5+.5*Math.sin(t*4+i*.7))*.12*st.bgI)*h;ctx.fillRect(i*gap,h*.84-bh,gap*.38,bh)}}
+ctx.restore()}
+function drawCaption(t,w,h,st){if(captionMode==='auto'){const cue=subtitleCues.find(c=>t>=c.start&&t<c.end);if(!cue)return;st={...st,text:cue.text,start:cue.start,anim:'none'};}if(!st.text||t<st.start)return;const local=t-st.start;let alpha=1,scale=1,dy=0,dx=0,text=st.text;const entrance=st.anim==='none'?1:Math.min(1,Math.max(.35,local*4));if(st.anim==='fade')alpha=entrance;if(st.anim==='rise'){alpha=entrance;dy=(1-entrance)*h*.06}if(st.anim==='slide'){alpha=entrance;dx=(1-entrance)*w*.18}if(st.anim==='pop'||st.anim==='bounce'){alpha=entrance;scale=st.anim==='bounce'?.82+.18*entrance:.72+.28*entrance}
+if(st.anim==='type'||st.preset==='typewriter')text=text.slice(0,Math.ceil(text.length*Math.min(1,local*3)));
+if(st.preset==='split')text=text.split(' ').reduce((acc,word,i)=>acc+(i===0?'':'\n')+word,'');
+if(st.preset==='kinetic'){dx=Math.sin(t*3)*w*.012;scale=1+Math.sin(t*4)*.035}
+if(st.preset==='glitch'&&Math.sin(t*27)>0.72){ctx.save();ctx.globalAlpha=alpha*.65;ctx.font='900 '+st.font+'px Impact,Arial Black,sans-serif';ctx.textAlign='center';ctx.fillStyle='#ff356a';ctx.fillText(text,w/2-w*.008,h*st.y+dy);ctx.fillStyle='#3cf5ff';ctx.fillText(text,w/2+w*.008,h*st.y+dy);ctx.restore()}
+ctx.save();ctx.globalAlpha=alpha;ctx.translate(w/2+dx,h*st.y+dy);ctx.scale(scale,scale);let font=st.font;if(st.preset==='cinema'||st.preset==='minimal')font*=.78;ctx.font=(st.preset==='minimal'?'500 ':'900 ')+font+'px Impact,"Arial Black",system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';const lines=text.split('\n'),lineH=font*1.15;const maxW=w*.84;let fitted=font;while(ctx.measureText(lines.reduce((a,b)=>a.length>b.length?a:b,'')).width>maxW&&fitted>18){fitted-=2;ctx.font=(st.preset==='minimal'?'500 ':'900 ')+fitted+'px Impact,"Arial Black",system-ui,sans-serif'}
+const lineWidth=Math.max(2,fitted*.065);lines.forEach((line,i)=>{const yy=(i-(lines.length-1)/2)*lineH;const tw=ctx.measureText(line).width;const bx=Math.min(maxW,tw+fitted*.45),bh=fitted*1.35;
+if(st.preset==='box'||st.preset==='story'){ctx.fillStyle=st.preset==='story'?'rgba(10,12,24,.82)':'rgba(8,10,18,.78)';roundRect(ctx,-bx/2,yy-bh/2,bx,bh,fitted*.13);ctx.fill();if(st.preset==='story'){ctx.strokeStyle='#b9a5ff';ctx.lineWidth=2;ctx.stroke()}}
+if(st.preset==='highlight'||st.preset==='karaoke'){ctx.fillStyle=st.preset==='highlight'?'#ffe65b':'#62f3b0';roundRect(ctx,-bx/2,yy-bh/2,bx,bh,fitted*.1);ctx.fill();ctx.fillStyle='#111827';ctx.fillText(line,0,yy)}
+else if(st.preset==='gold'){ctx.fillStyle='#f8d878';ctx.shadowColor='#d9a441';ctx.shadowBlur=12;ctx.fillText(line,0,yy)}
+else if(st.preset==='gradient'){const g=ctx.createLinearGradient(-bx/2,yy,bx/2,yy);g.addColorStop(0,'#64e9ff');g.addColorStop(.5,'#fff');g.addColorStop(1,'#d7a5ff');ctx.fillStyle=g;ctx.shadowColor='#15122e';ctx.shadowBlur=12;ctx.fillText(line,0,yy)}
+else if(st.preset==='neon'){ctx.shadowColor=st.color;ctx.shadowBlur=25;ctx.lineWidth=lineWidth;ctx.strokeStyle=st.color;ctx.strokeText(line,0,yy);ctx.fillStyle='#fff';ctx.fillText(line,0,yy)}
+else if(st.preset==='comic'){ctx.lineWidth=lineWidth*2.5;ctx.strokeStyle='#111';ctx.strokeText(line,0,yy);ctx.fillStyle='#ffe34e';ctx.fillText(line,0,yy)}
+else if(st.preset==='depth'){ctx.fillStyle='#14172b';ctx.fillText(line,4,yy+7);ctx.fillStyle=st.color;ctx.fillText(line,0,yy)}
+else if(st.preset==='cinema'){ctx.fillStyle=st.color;ctx.fillText(line.split('').join(' '),0,yy)}
+else if(st.preset==='minimal'||st.preset==='clean'){ctx.fillStyle=st.color;ctx.shadowColor='#000';ctx.shadowBlur=7;ctx.fillText(line,0,yy)}
+else{ctx.lineWidth=lineWidth;ctx.strokeStyle=st.preset==='glitch'?'#080b14':'rgba(0,0,0,.9)';ctx.strokeText(line,0,yy);ctx.fillStyle=st.color;ctx.shadowColor=st.preset==='viral'?'#000':'transparent';ctx.shadowBlur=st.preset==='viral'?12:0;ctx.fillText(line,0,yy)}
+});ctx.restore()}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function coverDraw(media,w,h,scale=1){if(!media||media.readyState<2)return;const mw=media.videoWidth||media.width||16,mh=media.videoHeight||media.height||9;if(!mw||!mh)return;const sc=Math.max(w/mw,h/mh)*scale,ww=mw*sc,hh=mh*sc;ctx.drawImage(media,(w-ww)/2,(h-hh)/2,ww,hh)}
+function classifyBrollCue(text){const t=String(text||'').toLowerCase();if(/\b(ai|artificial intelligence|kecerdasan buatan|generative|generator|prompt|text to video|image to video|video ai|ai video|membuat video|buat video|video generator|video editing|editing video|konten ai|gambar jadi video|gambar ke video|gemini|veo|sora|runway|pika|capcut|workflow ai)\b/.test(t))return 'AI video creation';const groups=[{keys:['business','bisnis','kerja','kantor','usaha','laptop','meeting','uang','sukses','pekerjaan'],kind:'Business / workspace'},{keys:['food','makan','masak','kopi','dapur','resep','makanan'],kind:'Food / lifestyle'},{keys:['travel','jalan','liburan','kota','hotel','pantai','wisata','perjalanan'],kind:'Travel / location'},{keys:['technology','teknologi','aplikasi','software','komputer','digital','data','hp','ponsel'],kind:'Technology'},{keys:['sedih','menangis','bahagia','marah','cinta','keluarga','teman','sahabat','motivasi'],kind:'Emotion / people'},{keys:['alam','hutan','hujan','gunung','laut','bunga','pohon','lingkungan'],kind:'Nature / atmosphere'}];for(const g of groups)if(g.keys.some(k=>t.includes(k)))return g.kind;return 'Contextual detail'}
+function brollSearchQuery(kind,text){
+ const t=String(text||'').toLowerCase();
+ if(kind==='AI video creation'){
+  const named=[['gemini','Gemini'],['veo','Veo'],['sora','Sora'],['runway','Runway'],['pika','Pika'],['flow','Google Flow'],['capcut','CapCut'],['youtube','YouTube'],['tiktok','TikTok']];
+  const specific=named.filter(([key])=>t.includes(key)).map(([,label])=>label);
+  const concepts=[];
+  if(/prompt|perintah teks/.test(t))concepts.push('AI prompt');
+  if(/gambar|image|foto/.test(t))concepts.push('image to video');
+  if(/edit|editing|sunting/.test(t))concepts.push('video editing');
+  if(/avatar|karakter|character/.test(t))concepts.push('AI avatar');
+  if(/generat|buat|membuat|produksi/.test(t))concepts.push('AI video generator');
+  return [...new Set([...specific,...concepts,'artificial intelligence computer screen'])].slice(0,5).join(' ');
+ }
+ if(kind==='Business / workspace')return 'business office people working';
+ if(kind==='Food / lifestyle')return 'food cooking kitchen';
+ if(kind==='Travel / location')return 'travel city beach';
+ if(kind==='Technology')return 'technology computer smartphone';
+ if(kind==='Emotion / people')return /keluarga|family|orang tua|anak/.test(t)?'family people lifestyle':'people emotions friends';
+ if(kind==='Nature / atmosphere')return 'nature forest ocean';
+ const mappings=[[/\b(motivasi|semangat|pantang|menyerah|mimpi|sukses)\b/,'motivation success person'],[/\b(cinta|sayang|pasangan|pacar|romantis)\b/,'love couple romantic'],[/\b(keluarga|anak|ibu|ayah|orang tua)\b/,'family people'],[/\b(mobil|motor|kendaraan|jalan raya)\b/,'cars road traffic'],[/\b(olahraga|sehat|lari|fitness)\b/,'fitness sports running'],[/\b(sekolah|belajar|guru|murid)\b/,'school students learning']];
+ for(const pair of mappings)if(pair[0].test(t))return pair[1];
+ const stop=new Set(['yang','dan','dari','untuk','dengan','agar','atau','pada','dalam','tidak','bukan','akan','bisa','sudah','saja','kami','kamu','mereka','kita','saya','aku','dia','ini','itu','adalah','karena','ketika','lebih','sangat','juga','oleh','the','and','for','with','that','this','you','your','are','was','were','have','has','had','from','into','about','what','when','where','there','their','they']);
+ const words=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(w=>w.length>3&&!stop.has(w));
+ return [...new Set(words)].slice(0,4).join(' ')||'people lifestyle';
+}
+function disposeStockBroll(){
+ stockBroll.forEach(item=>{if(item.el){item.el.pause();item.el.removeAttribute('src');item.el.load();if(item.el.parentNode)item.el.parentNode.removeChild(item.el)}});
+ stockBroll=[];
+}
+function buildSmartBrollPlan(){
+ const st=settings(),step=Math.max(7,st.brollInterval),limit=Math.max(0,duration-st.brollDuration);smartBrollPlan=[];
+ if(st.brollMode!=='auto')return smartBrollPlan;
+ const theme=(document.getElementById('brollTheme')?.value||'').trim();
+ const themeKind=theme?classifyBrollCue(theme):'';
+ const themeQuery=theme?brollSearchQuery(themeKind,theme):'';
+ for(let at=st.brollStart,guard=0;at<limit&&guard<40;at+=step,guard++){
+  const cue=subtitleCues.filter(c=>c.start>=at&&c.start<Math.min(limit,at+step)).sort((a,b)=>Math.abs(a.start-(at+2))-Math.abs(b.start-(at+2)))[0];
+  const text=cue?cue.text:'',kind=classifyBrollCue(text);
+  smartBrollPlan.push({start:cue?Math.max(at,cue.start):at,kind:theme?themeKind:kind,reason:theme?'Diprioritaskan berdasarkan tema utama video.':(cue?'Dipilih berdasarkan konteks caption.':'Interval seimbang; tunggu caption untuk pencarian kontekstual.'),source:'stock',cueText:text,query:theme?themeQuery:(cue?brollSearchQuery(kind,text):'')});
+ }
+ syncQuickControls();return smartBrollPlan
+}
+async function searchStockBroll(options={}){
+ const silent=!!options.silent;
+ if(stockBrollBusy)return;
+ $('brollMode').value='auto';syncQuickControls();
+ if(!smartBrollPlan.length)buildSmartBrollPlan();
+ let captionText=$('captionText').value.trim();
+ const theme=($('brollTheme')?.value||'').trim();
+ if(!theme&&!subtitleCues.length){stockBrollError='Jalankan Auto Caption terlebih dahulu agar aplikasi dapat memahami isi video secara otomatis.';syncQuickControls();if(!silent)message(stockBrollError);return;}
+ if(!smartBrollPlan.length)buildSmartBrollPlan();
+ let queries=theme?[brollSearchQuery(classifyBrollCue(theme),theme)]:[...new Set(smartBrollPlan.map(p=>p.query).filter(Boolean))].slice(0,4);
+ if(!queries.length&&captionText){
+  const kind=classifyBrollCue(captionText),query=brollSearchQuery(kind,captionText);
+  smartBrollPlan.forEach(p=>{p.query=query;p.cueText=captionText;p.kind=kind;p.reason='Dipilih dari teks caption.'});
+  queries=[query];
+ }
+ if(!queries.length){
+  stockBrollError='Tambahkan teks atau jalankan Auto Caption terlebih dahulu.';
+  syncQuickControls();if(!silent)message(stockBrollError);return;
+ }
+ stockBrollBusy=true;stockBrollError='';syncQuickControls();
+ if(!silent)message('Mencari footage gratis yang cocok di Pixabay…');
+ try{
+  const settled=await Promise.allSettled(queries.map(async query=>{
+   const response=await fetch('/api/broll?q='+encodeURIComponent(query)+'&per_page=8',{method:'GET',headers:{Accept:'application/json'}});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(data.error||('Pencarian gagal ('+response.status+').'));
+   return (Array.isArray(data.videos)?data.videos:[]).map(item=>({...item,query}));
+  }));
+  const failed=settled.filter(x=>x.status==='rejected');
+  const merged=[];
+  for(const result of settled)if(result.status==='fulfilled')merged.push(...result.value);
+  const unique=[...new Map(merged.map(item=>[item.id,item])).values()];
+  if(!unique.length)throw new Error(failed.length?(failed[0].reason&&failed[0].reason.message||'Pixabay tidak bisa mencari footage.'): 'Pixabay tidak menemukan footage. Coba tema yang lebih spesifik.');
+  const stopWords=new Set(['the','and','for','with','video','people','content','from','that','this','into','your','their','about','computer','screen','digital','artificial','intelligence']);
+  const ranked=unique.map(item=>{
+   const tags=String(item.tags||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+   const itemQuery=String(item.query||queries[0]||'').toLowerCase();
+   const queryWords=[...new Set(itemQuery.split(/[^a-z0-9]+/).filter(w=>w.length>2&&!stopWords.has(w)))];
+   const tagWords=new Set(tags.split(/\\s+/).filter(Boolean));
+   const matched=queryWords.filter(word=>tagWords.has(word));
+   const score=matched.length;
+   return {...item,relevanceScore:score,matchedTopics:matched};
+  }).sort((a,b)=>b.relevanceScore-a.relevanceScore);
+  // Never insert a random stock clip: each selected clip must match at least one meaningful word from its own search query.
+  const relevant=ranked.filter(item=>item.relevanceScore>=1);
+  // Pixabay search is already contextual. Tags may omit valid concepts, so do not fail the whole workflow when exact tag matching returns zero.
+  const chosen=(relevant.length?relevant:ranked).slice(0,24);
+  disposeStockBroll();
+  stockBroll=chosen.map((item,index)=>{
+   const el=document.createElement('video');
+   el.crossOrigin='anonymous';el.muted=true;el.defaultMuted=true;el.playsInline=true;el.setAttribute('playsinline','');el.preload='auto';el.loop=true;
+   el.style.cssText='position:fixed;width:2px;height:2px;left:-20px;top:0;opacity:0.001;pointer-events:none';
+   el.onerror=()=>{stockBroll=stockBroll.filter(x=>x.el!==el);stockBrollError=stockBroll.length?'Sebagian video stok gagal dimuat di browser ini.':'Video stok gagal dimuat. Periksa koneksi, lalu coba lagi.';syncQuickControls();draw(base)};
+   document.body.appendChild(el);el.src=item.url;el.load();
+   return {...item,el,stock:true};
+  });
+  smartBrollPlan.forEach((p,i)=>{p.stockFound=stockBroll.some(x=>x.query===p.query)||stockBroll.length>0;});
+  syncQuickControls();draw(base);
+  message('B-roll siap: '+stockBroll.length+' klip Pixabay yang paling relevan dengan '+(theme?'tema video.':'caption.'));
+ }catch(err){
+  stockBrollError=err&&err.message?err.message:'Pencarian Pixabay gagal.';
+  syncQuickControls();message('Pencarian B-roll gagal: '+stockBrollError);
+ }finally{
+  stockBrollBusy=false;syncQuickControls();
+ }
+}
+function activeBroll(t,st){
+ if(st.brollMode==='off'||t<st.brollStart)return null;
+ if(st.brollMode==='auto'&&smartBrollPlan.length){
+  for(let i=0;i<smartBrollPlan.length;i++){
+   const p=smartBrollPlan[i],within=t-p.start;
+   if(within>=0&&within<st.brollDuration){
+    const matching=stockBroll.filter(x=>p.query&&x.query===p.query);
+    const candidates=matching.length?matching:stockBroll;
+    if(candidates.length)return {item:candidates[i%candidates.length],within,mode:'cutaway',cycle:i,auto:false,external:true,plan:p};
+    return autoBroll?{item:autoBroll,within,mode:'overlay',cycle:i,auto:true,plan:p}:null;
+   }
+  }
+  return null;
+ }
+ const cycle=Math.floor((t-st.brollStart)/st.brollInterval),within=(t-st.brollStart)%st.brollInterval;
+ if(within>=st.brollDuration)return null;
+ if(st.brollMode==='manual')return broll.length?{item:broll[cycle%broll.length],within,mode:'overlay',cycle,auto:false}:null;
+ if(st.brollMode==='auto'){if(autoBroll)return {item:autoBroll,within,mode:'overlay',cycle,auto:true};return null}
+ if(broll.length)return {item:broll[cycle%broll.length],within,mode:st.brollMode,cycle,auto:false};
+ if(autoBroll)return {item:autoBroll,within,mode:'overlay',cycle,auto:true};
+ return null;
+}
+
+function draw(t){const st=settings(),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);if(video&&video.readyState>=2){const p=Math.min(1,t/Math.max(1,duration));const z=1+.05*p;coverDraw(video,w,h,z)}else{const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#10182b');g.addColorStop(.5,'#24164b');g.addColorStop(1,'#072b37');ctx.fillStyle=g;ctx.fillRect(0,0,w,h)}
+drawBackground(t,w,h,st);
+const br=activeBroll(t,st);if(br&&br.item.el.readyState>=2){const m=br.item.el;const enter=Math.min(1,br.within/.28,Math.max(.05,(st.brollDuration-br.within)/.22));const ease=1-Math.pow(1-Math.max(0,enter),3);ctx.save();if(br.mode==='cutaway'){ctx.fillStyle='#05070b';ctx.fillRect(0,0,w,h);ctx.globalAlpha=.72+.28*ease;coverDraw(m,w,h,1.02+.035*Math.sin(br.within*2))}else{const bw=w*st.brollSize,bh=h*st.brollSize*.62;const slide=(1-ease)*bw*.22;const bx=w-bw-w*.05-slide,by=h*.08+(1-ease)*h*.025;ctx.globalAlpha=.92+.08*ease;ctx.shadowColor='#000';ctx.shadowBlur=w*.035;ctx.fillStyle='#06080d';roundRect(ctx,bx-5,by-5,bw+10,bh+10,Math.max(12,w*.018));ctx.fill();ctx.shadowBlur=0;ctx.save();ctx.beginPath();roundRect(ctx,bx,by,bw,bh,Math.max(10,w*.014));ctx.clip();const mw=m.videoWidth||16,mh=m.videoHeight||9,sc=Math.max(bw/mw,bh/mh)*(1.03+.045*ease);ctx.drawImage(m,(bw-mw*sc)/2+bx,(bh-mh*sc)/2+by,mw*sc,mh*sc);ctx.restore();const pulse=.65+.35*Math.sin(br.within*8);ctx.strokeStyle=br.auto?'#6fffe0':'#ffffff';ctx.globalAlpha=.75*pulse;ctx.lineWidth=Math.max(3,w*.006);roundRect(ctx,bx,by,bw,bh,Math.max(10,w*.014));ctx.stroke();ctx.globalAlpha=.9;const tag=br.external?'PIXABAY B-ROLL':'B-ROLL';ctx.font='900 '+Math.max(16,w*.025)+'px system-ui,sans-serif';const tw=ctx.measureText(tag).width+Math.max(18,w*.03),th=Math.max(28,w*.045);ctx.fillStyle=br.auto?'#087f73':'#5030b8';roundRect(ctx,bx+Math.max(8,w*.012),by+Math.max(8,w*.012),tw,th,th*.25);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(tag,bx+Math.max(17,w*.024),by+Math.max(8,w*.012)+th/2)}ctx.restore()}
+drawCaption(t,w,h,st);updateUI(t)}
+function syncMedia(el,t){if(!el||!Number.isFinite(el.duration)||el.duration<=0)return;const target=Math.min(Math.max(0,el.duration-.04),t%el.duration);if(Math.abs(el.currentTime-target)>.22){try{el.currentTime=target}catch(e){}}}
+function syncBroll(t){
+ const st=settings(),br=activeBroll(t,st);
+ if(br&&br.external&&br.item.el){
+  const el=br.item.el;if(el.paused)el.play().catch(()=>{});
+  syncMedia(el,br.within);
+  if(autoBroll&&!autoBroll.el.paused)autoBroll.el.pause();
+ }else if(br&&br.auto&&br.item.el){
+  const el=br.item.el;if(el.paused)el.play().catch(()=>{});
+  const d=Number.isFinite(el.duration)&&el.duration>0?el.duration:duration;
+  const offset=(st.brollStart+(br.cycle+1)*st.brollInterval+d*.23+br.within)%Math.max(.1,d-.05);syncMedia(el,offset);
+ }else if(autoBroll&&!autoBroll.el.paused)autoBroll.el.pause();
+ broll.forEach(x=>{if(br&&!br.auto&&!br.external&&x===br.item){if(x.el.paused)x.el.play().catch(()=>{});syncMedia(x.el,br.within)}else if(!x.el.paused)x.el.pause()});
+ stockBroll.forEach(x=>{if(br&&br.external&&x===br.item)return;if(!x.el.paused)x.el.pause()});
+}
+function tick(){if(!playing)return;const t=Math.min(duration,base+(performance.now()-clock)/1000);if(t>=duration){base=duration;pause();draw(duration);return}syncMedia(video,t);syncBroll(t);draw(t);raf=requestAnimationFrame(tick)}
+function play(){if(playing){pause();return}if(base>=duration)base=0;playing=true;clock=performance.now();$('playBtn').textContent='Ⅱ Pause';$('playSmall').textContent='Ⅱ';if(video){video.muted=false;video.defaultMuted=false;syncMedia(video,base);video.play().catch(()=>{})}if(audio){try{audio.currentTime=base%(audio.duration||duration)}catch(e){}audio.play().catch(()=>{})}raf=requestAnimationFrame(tick)}
+function pause(){playing=false;cancelAnimationFrame(raf);if(video){video.pause();video.muted=true;video.defaultMuted=true;}if(audio)audio.pause();if(autoBroll)autoBroll.el.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>x.el.pause());$('playBtn').textContent='▶ Preview';$('playSmall').textContent='▶'}
+function loadVideo(file){
+if(!file){message('Belum ada file video yang dipilih.');return}
+pause();
+try{
+if(videoURL){URL.revokeObjectURL(videoURL);videoURL=null}
+if(autoBroll){autoBroll.el.pause();autoBroll.el.removeAttribute('src');autoBroll.el.load();if(autoBroll.el.parentNode)autoBroll.el.parentNode.removeChild(autoBroll.el);autoBroll=null}
+if(autoBrollURL){URL.revokeObjectURL(autoBrollURL);autoBrollURL=null}
+if(video){video.pause();video.removeAttribute('src');video.load();if(video.parentNode)video.parentNode.removeChild(video)}
+subtitleCues=[];captionMode='manual';$('captionText').readOnly=false;disposeStockBroll();stockBrollError='';syncQuickControls();
+const canvasEl=$('canvas');
+canvasEl.style.display='block';
+$('mediaStatus').textContent='Memuat video…';$('readyBadge').textContent='LOADING VIDEO';$('videoName').textContent='Memuat: '+file.name;if($('brollMode').value!=='manual')$('brollMode').value='auto';syncQuickControls();$('brollName').textContent='Auto B-roll aktif · memilih potongan lain dari video utama';$('brollHelp').textContent='Auto B-roll aktif tanpa upload tambahan: aplikasi mengambil potongan dari bagian lain video utama dan menyisipkannya sebagai close-up/PiP secara berkala. Unggah klip tambahan hanya bila ingin footage yang benar-benar berbeda.';message('File dipilih: '+file.name+' · '+(file.size/1048576).toFixed(1)+' MB. Sedang membaca video…');
+videoURL=URL.createObjectURL(file);
+video=document.createElement('video');
+video.muted=true;video.defaultMuted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');video.preload='auto';
+video.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0.001;z-index:0;pointer-events:none;background:#07090e';
+canvasEl.style.position='relative';canvasEl.style.zIndex='1';
+$('canvas').parentElement.insertBefore(video,canvasEl);
+let metadataReady=false,frameReady=false,usingNativeFallback=false;
+const showFrame=()=>{
+if(!video||video.readyState<2||frameReady)return;
+frameReady=true;
+$('placeholder').style.display='none';
+try{
+draw(0);
+$('mediaStatus').textContent='Video siap';$('readyBadge').textContent='MEDIA READY';
+message('Preview siap: '+file.name+' · tekan Preview untuk memutar.');
+}catch(err){
+usingNativeFallback=true;
+canvasEl.style.display='none';
+video.style.opacity='1';video.style.zIndex='3';video.style.pointerEvents='auto';video.controls=true;
+$('mediaStatus').textContent='Preview native';
+$('readyBadge').textContent='NATIVE VIDEO';
+message('Video bisa dibuka, tetapi preview kanvas gagal: '+(err&&err.message?err.message:String(err))+'. Video ditampilkan langsung sebagai cadangan.');
+}
+};
+video.onloadedmetadata=()=>{
+metadataReady=true;
+const seconds=Number.isFinite(video.duration)&&video.duration>0?video.duration:10;
+duration=Math.max(1,Math.min(60,Math.ceil(seconds)));
+$('duration').value=String(duration);
+$('durationMirror').value=String([10,15,20,30,45,60].find(n=>n>=duration)||60);
+base=0;buildSmartBrollPlan();$('videoName').textContent=file.name+' · '+(video.videoWidth||'?')+'×'+(video.videoHeight||'?')+' · '+seconds.toFixed(1)+' dtk';
+$('mediaStatus').textContent='Metadata terbaca';message('Metadata video terbaca; menyiapkan frame pertama…');
+try{video.currentTime=0}catch(e){}
+if(video.readyState>=2)showFrame();
+};
+video.onloadeddata=showFrame;
+video.oncanplay=showFrame;
+video.onseeked=()=>{if(metadataReady&&!frameReady)showFrame()};
+video.onerror=()=>{
+const err=video.error,code=err?err.code:0;
+$('mediaStatus').textContent='Gagal membaca video';$('readyBadge').textContent='MEDIA ERROR';
+message('Browser gagal membaca video (kode '+code+'). Jika format HEVC/H.265, ekspor ulang sebagai MP4 H.264 lalu pilih kembali.');
+};
+video.src=videoURL;video.load();
+autoBrollURL=URL.createObjectURL(file);const autoEl=document.createElement('video');autoEl.muted=true;autoEl.defaultMuted=true;autoEl.playsInline=true;autoEl.setAttribute('playsinline','');autoEl.preload='auto';autoEl.style.cssText='position:fixed;width:2px;height:2px;left:-20px;top:0;opacity:0.001;pointer-events:none';document.body.appendChild(autoEl);autoBroll={file,url:autoBrollURL,el:autoEl,auto:true};autoEl.src=autoBrollURL;autoEl.load();
+}catch(err){
+$('mediaStatus').textContent='Gagal memuat';$('readyBadge').textContent='MEDIA ERROR';
+message('Kesalahan saat membuka file: '+(err&&err.message?err.message:String(err)));
+}
+}
+function loadBroll(files){if(!files||!files.length)return;broll.forEach(x=>{x.el.pause();URL.revokeObjectURL(x.url)});broll=[];Array.from(files).forEach(file=>{const url=URL.createObjectURL(file),el=document.createElement('video');el.src=url;el.muted=true;el.playsInline=true;el.preload='auto';broll.push({file,url,el})});$('brollName').textContent=broll.length+' klip manual: '+Array.from(files).map(f=>f.name).slice(0,2).join(', ')+(files.length>2?'…':'');$('brollMode').value='manual';syncQuickControls();message('Mode Manual aktif. Klip B-roll unggahan akan dipakai.');draw(base)}
+function loadAudio(file){if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);audio=new Audio(audioURL);audio.preload='auto';$('audioName').textContent=file.name;message('Audio ditambahkan. Audio akan dicoba ikut dalam ekspor.')}
+function setDuration(){duration=+$('duration').value;$('durationMirror').value=String(duration);base=Math.min(base,duration);buildSmartBrollPlan();draw(base)}
+async function exportVideo(){if(exporting)return;if(!window.MediaRecorder||!canvas.captureStream){message('Browser ini belum mendukung export WebM. Coba Chrome terbaru.');return}if(!video){message('Upload video utama dulu sebelum export.');return}exporting=true;pause();const oldW=canvas.width,oldH=canvas.height,oldBase=base,oldDuration=duration,r=$('ratio').value,res=+$('resolution').value,fps=+$('fps').value;let w,h;if(r==='16:9'){w=res;h=Math.round(res*9/16)}else if(r==='1:1'){w=h=res}else{h=res;w=Math.round(res*9/16)}canvas.width=w;canvas.height=h;draw(0);let stream,ac;const chunks=[];try{stream=canvas.captureStream(fps);try{const mediaEl=audio||video;if(mediaEl){ac=new(window.AudioContext||window.webkitAudioContext)();const src=ac.createMediaElementSource(mediaEl),dest=ac.createMediaStreamDestination();src.connect(dest);dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));await ac.resume()}}catch(e){message('Video tetap dirender; audio capture dibatasi browser. Coba Chrome terbaru jika suara export tidak muncul.')}const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];const mime=types.find(x=>MediaRecorder.isTypeSupported(x))||'';const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:res>=1080?6500000:3500000}:undefined);rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};const done=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=e=>reject(e.error||new Error('Recorder error'))});rec.start(250);$('exportBtn').disabled=$('exportSide').disabled=true;$('exportBtn').textContent='● Rendering…';if(video){video.muted=false;video.defaultMuted=false;video.currentTime=0;await video.play().catch(()=>{})}if(audio){audio.currentTime=0;await audio.play().catch(()=>{})}const start=performance.now();await new Promise(resolve=>{function frame(){const elapsed=(performance.now()-start)/1000,t=Math.min(oldDuration,elapsed);syncMedia(video,t);syncBroll(t);draw(t);message('Rendering '+Math.round(Math.min(100,elapsed/oldDuration*100))+'% · '+fmt(t)+' / '+fmt(oldDuration));if(elapsed>=oldDuration){resolve();return}requestAnimationFrame(frame)}requestAnimationFrame(frame)});if(video){video.pause();video.muted=true;video.defaultMuted=true}if(audio)audio.pause();if(autoBroll)autoBroll.el.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>x.el.pause());rec.stop();await done;const blob=new Blob(chunks,{type:rec.mimeType||'video/webm'});if(blob.size){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='ailabs-auto-motion-'+Date.now()+'.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);message('Export selesai · '+(blob.size/1048576).toFixed(1)+' MB · WebM')}else message('File export kosong. Coba 720p / 30 FPS.')}catch(e){message('Export gagal: '+(e.message||'unknown error'))}finally{if(video)video.pause();if(audio)audio.pause();broll.forEach(x=>x.el.pause());stockBroll.forEach(x=>x.el.pause());if(ac)await ac.close().catch(()=>{});if(stream)stream.getTracks().forEach(t=>t.stop());canvas.width=oldW;canvas.height=oldH;duration=oldDuration;base=oldBase;draw(base);exporting=false;$('exportBtn').disabled=$('exportSide').disabled=false;$('exportBtn').textContent='⇩ Export WebM'}}
+
+document.querySelectorAll('[data-broll-mode]').forEach(b=>b.onclick=()=>{$('brollMode').value=b.dataset.brollMode;syncQuickControls();draw(base);const mode=$('brollMode').value;message(mode==='auto'?'Mode Auto B-roll aktif.':mode==='manual'?(broll.length?'Mode Manual aktif. Klip yang diunggah akan dipakai.':'Mode Manual aktif. Tekan Add B-roll clips.'):'B-roll dimatikan.')});
+$('captionManualBtn').onclick=()=>setCaptionMode('manual');
+$('captionAutoBtn').onclick=transcribeVideo;
+$('findBrollBtn').onclick=()=>searchStockBroll();
+syncQuickControls();
+$('videoFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadVideo(f)};$('brollFiles').onchange=e=>{const f=e.target.files;e.target.value='';loadBroll(f)};$('audioFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';loadAudio(f)};$('playBtn').onclick=$('playSmall').onclick=()=>playing?pause():play();$('exportBtn').onclick=$('exportSide').onclick=exportVideo;$('backBtn').onclick=()=>{pause();base=Math.max(0,base-1);syncMedia(video,base);draw(base)};$('forwardBtn').onclick=()=>{pause();base=Math.min(duration,base+1);syncMedia(video,base);draw(base)};$('duration').onchange=setDuration;$('durationMirror').onchange=e=>{$('duration').value=e.target.value;setDuration()};$('ratio').onchange=resize;$('brollMode').onchange=()=>{syncQuickControls();draw(base);const mode=$('brollMode').value;message(mode==='off'?'B-roll dimatikan.':mode==='manual'?(broll.length?'Mode Manual aktif. Klip unggahan akan dipakai.':'Mode Manual aktif. Unggah klip lewat Add B-roll clips.'):'Mode Otomatis aktif. Sisipan dibuat dari video utama.')};
+['videoTrack','captionTrack','brollTrack'].forEach(id=>$(id).addEventListener('click',e=>{pause();const r=e.currentTarget.getBoundingClientRect();base=Math.max(0,Math.min(duration,(e.clientX-r.left)/r.width*duration));syncMedia(video,base);draw(base)}));
+['captionText','fontSize','textY','textColor','textAnim','captionStart','bgStyle','bgIntensity','bgOpacity','brollMode','brollStart','brollInterval','brollDuration','brollSize'].forEach(id=>$(id).addEventListener('input',()=>{if(id==='fontSize')$('fontVal').textContent=$('fontSize').value+' px';if(id==='textY')$('textYVal').textContent=$('textY').value+'%';if(id==='bgIntensity')$('bgIntensityVal').textContent=$('bgIntensity').value+'%';if(id==='bgOpacity')$('bgOpacityVal').textContent=$('bgOpacity').value+'%';draw(base)}));
+document.querySelectorAll('[data-caption]').forEach(b=>b.onclick=()=>{captionPreset=b.dataset.caption;document.querySelectorAll('[data-caption]').forEach(x=>x.classList.toggle('active',x===b));draw(base)});
+window.addEventListener('beforeunload',e=>{if(exporting){e.preventDefault();e.returnValue=''}});resize();draw(0);
+})();
+</script></body></html>
