@@ -185,7 +185,17 @@ function coverDraw(media,w,h,scale=1){if(!media||media.readyState<2)return;const
 function classifyBrollCue(text){const t=String(text||'').toLowerCase();if(/\b(ai|artificial intelligence|kecerdasan buatan|generative|generator|prompt|text to video|image to video|video ai|ai video|membuat video|buat video|video generator|video editing|editing video|konten ai|gambar jadi video|gambar ke video|gemini|veo|sora|runway|pika|capcut|workflow ai)\b/.test(t))return 'AI video creation';const groups=[{keys:['business','bisnis','kerja','kantor','usaha','laptop','meeting','uang','sukses','pekerjaan'],kind:'Business / workspace'},{keys:['food','makan','masak','kopi','dapur','resep','makanan'],kind:'Food / lifestyle'},{keys:['travel','jalan','liburan','kota','hotel','pantai','wisata','perjalanan'],kind:'Travel / location'},{keys:['technology','teknologi','aplikasi','software','komputer','digital','data','hp','ponsel'],kind:'Technology'},{keys:['sedih','menangis','bahagia','marah','cinta','keluarga','teman','sahabat','motivasi'],kind:'Emotion / people'},{keys:['alam','hutan','hujan','gunung','laut','bunga','pohon','lingkungan'],kind:'Nature / atmosphere'}];for(const g of groups)if(g.keys.some(k=>t.includes(k)))return g.kind;return 'Contextual detail'}
 function brollSearchQuery(kind,text){
  const t=String(text||'').toLowerCase();
- if(kind==='AI video creation')return 'AI video generator computer screen video editing digital content creator';
+ if(kind==='AI video creation'){
+  const named=[['gemini','Gemini'],['veo','Veo'],['sora','Sora'],['runway','Runway'],['pika','Pika'],['flow','Google Flow'],['capcut','CapCut'],['youtube','YouTube'],['tiktok','TikTok']];
+  const specific=named.filter(([key])=>new RegExp('\\\\b'+key+'\\\\b','i').test(t)).map(([,label])=>label);
+  const concepts=[];
+  if(/prompt|perintah teks/.test(t))concepts.push('AI prompt');
+  if(/gambar|image|foto/.test(t))concepts.push('image to video');
+  if(/edit|editing|sunting/.test(t))concepts.push('video editing');
+  if(/avatar|karakter|character/.test(t))concepts.push('AI avatar');
+  if(/generat|buat|membuat|produksi/.test(t))concepts.push('AI video generator');
+  return [...new Set([...specific,...concepts,'artificial intelligence computer screen'])].slice(0,5).join(' ');
+ }
  if(kind==='Business / workspace')return 'business office people working';
  if(kind==='Food / lifestyle')return 'food cooking kitchen';
  if(kind==='Travel / location')return 'travel city beach';
@@ -248,12 +258,20 @@ async function searchStockBroll(options={}){
   for(const result of settled)if(result.status==='fulfilled')merged.push(...result.value);
   const unique=[...new Map(merged.map(item=>[item.id,item])).values()];
   if(!unique.length)throw new Error(failed.length?(failed[0].reason&&failed[0].reason.message||'Pixabay tidak bisa mencari footage.'): 'Pixabay tidak menemukan footage. Coba tema yang lebih spesifik.');
-  const activeQuery=theme?brollSearchQuery(classifyBrollCue(theme),theme):'';
-  const topicWords=(activeQuery||queries[0]||'').toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>2&&!['the','and','for','with','video','people','content'].includes(w));
-  const ranked=unique.map(item=>{const tags=String(item.tags||'').toLowerCase();const score=topicWords.reduce((n,word)=>n+(tags.includes(word)?1:0),0);return {...item,relevanceScore:score};}).sort((a,b)=>b.relevanceScore-a.relevanceScore);
-  const relevant=ranked.filter(item=>item.relevanceScore>=Math.min(1,topicWords.length));
-  if(theme&&relevant.length===0)throw new Error('Pixabay tidak menemukan footage yang cukup relevan dengan tema "'+theme+'". Tidak ada footage acak yang disisipkan. Coba tema yang lebih spesifik, misalnya "AI video editor computer screen".');
-  const chosen=(theme?relevant:ranked).slice(0,24);
+  const stopWords=new Set(['the','and','for','with','video','people','content','from','that','this','into','your','their','about','computer','screen','digital','artificial','intelligence']);
+  const ranked=unique.map(item=>{
+   const tags=String(item.tags||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+   const itemQuery=String(item.query||queries[0]||'').toLowerCase();
+   const queryWords=[...new Set(itemQuery.split(/[^a-z0-9]+/).filter(w=>w.length>2&&!stopWords.has(w)))];
+   const tagWords=new Set(tags.split(/\\s+/).filter(Boolean));
+   const matched=queryWords.filter(word=>tagWords.has(word));
+   const score=matched.length;
+   return {...item,relevanceScore:score,matchedTopics:matched};
+  }).sort((a,b)=>b.relevanceScore-a.relevanceScore);
+  // Never insert a random stock clip: each selected clip must match at least one meaningful word from its own search query.
+  const relevant=ranked.filter(item=>item.relevanceScore>=1);
+  if(relevant.length===0)throw new Error('Pixabay tidak menemukan footage dengan tag yang cocok dengan konteks caption. Tidak ada footage acak yang disisipkan. Coba jalankan Auto Caption lagi atau gunakan klip B-roll sendiri.');
+  const chosen=relevant.slice(0,24);
   disposeStockBroll();
   stockBroll=chosen.map((item,index)=>{
    const el=document.createElement('video');
