@@ -2,7 +2,8 @@ const https = require('https');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=86400, stale-while-revalidate=86400');
+  // Do not cache API errors (especially missing API-key responses) at the CDN.
+  res.setHeader('Cache-Control', 'no-store');
 
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
@@ -87,6 +88,7 @@ module.exports = async function handler(req, res) {
       };
     }).filter(video => video && video.url && video.id);
 
+    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400');
     return res.status(200).json({ source: 'Pixabay', query: q, totalHits: Number(data.totalHits) || 0, videos });
   } catch (error) {
     return res.status(502).json({
