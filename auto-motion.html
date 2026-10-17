@@ -245,9 +245,15 @@ async function searchStockBroll(options={}){
   const merged=[];
   for(const result of settled)if(result.status==='fulfilled')merged.push(...result.value);
   const unique=[...new Map(merged.map(item=>[item.id,item])).values()];
-  if(!unique.length)throw new Error(failed.length?(failed[0].reason&&failed[0].reason.message||'Pixabay tidak bisa mencari footage.'): 'Tidak ada video yang cocok. Coba caption yang lebih jelas.');
+  if(!unique.length)throw new Error(failed.length?(failed[0].reason&&failed[0].reason.message||'Pixabay tidak bisa mencari footage.'): 'Pixabay tidak menemukan footage. Coba tema yang lebih spesifik.');
+  const activeQuery=theme?brollSearchQuery(classifyBrollCue(theme),theme):'';
+  const topicWords=(activeQuery||queries[0]||'').toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>2&&!['the','and','for','with','video','people','content'].includes(w));
+  const ranked=unique.map(item=>{const tags=String(item.tags||'').toLowerCase();const score=topicWords.reduce((n,word)=>n+(tags.includes(word)?1:0),0);return {...item,relevanceScore:score};}).sort((a,b)=>b.relevanceScore-a.relevanceScore);
+  const relevant=ranked.filter(item=>item.relevanceScore>=Math.min(1,topicWords.length));
+  if(theme&&relevant.length===0)throw new Error('Pixabay tidak menemukan footage yang cukup relevan dengan tema "'+theme+'". Tidak ada footage acak yang disisipkan. Coba tema yang lebih spesifik, misalnya "AI video editor computer screen".');
+  const chosen=(theme?relevant:ranked).slice(0,24);
   disposeStockBroll();
-  stockBroll=unique.slice(0,24).map((item,index)=>{
+  stockBroll=chosen.map((item,index)=>{
    const el=document.createElement('video');
    el.crossOrigin='anonymous';el.muted=true;el.defaultMuted=true;el.playsInline=true;el.setAttribute('playsinline','');el.preload='auto';el.loop=true;
    el.style.cssText='position:fixed;width:2px;height:2px;left:-20px;top:0;opacity:0.001;pointer-events:none';
@@ -257,7 +263,7 @@ async function searchStockBroll(options={}){
   });
   smartBrollPlan.forEach((p,i)=>{p.stockFound=stockBroll.some(x=>x.query===p.query)||stockBroll.length>0;});
   syncQuickControls();draw(base);
-  message('B-roll gratis siap: '+stockBroll.length+' klip Pixabay. Preview untuk memeriksa sisipannya.');
+  message('B-roll siap: '+stockBroll.length+' klip Pixabay yang paling relevan dengan '+(theme?'tema video.':'caption.'));
  }catch(err){
   stockBrollError=err&&err.message?err.message:'Pencarian Pixabay gagal.';
   syncQuickControls();message('Pencarian B-roll gagal: '+stockBrollError);
