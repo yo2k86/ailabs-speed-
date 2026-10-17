@@ -9,6 +9,17 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const clientAddress = String((req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || (req.socket && req.socket.remoteAddress) || 'unknown').split(',')[0].trim();
+  const now = Date.now();
+  if (!globalThis.__ailabsBrollRate) globalThis.__ailabsBrollRate = new Map();
+  const rateMap = globalThis.__ailabsBrollRate;
+  const rate = rateMap.get(clientAddress);
+  if (rate && now - rate.start < 60000 && rate.count >= 30) {
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil((60000 - (now - rate.start)) / 1000))));
+    return res.status(429).json({ error: 'Batas pencarian sementara tercapai. Tunggu sebentar lalu coba lagi.' });
+  }
+  if (!rate || now - rate.start >= 60000) rateMap.set(clientAddress, { start: now, count: 1 });
+  else rate.count += 1;
   const apiKey = process.env.PIXABAY_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'Pixabay API belum dikonfigurasi di server.' });
