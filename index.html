@@ -905,7 +905,7 @@ function initPreviewSfx(){
  }catch(e){}
 }
 function draw(t){const st=settings(),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);let motion=null;if(video&&video.readyState>=2){motion=getAutoCameraMotion(t,w,h);coverDraw(video,w,h,motion.scale,motion.x,motion.y)}else{const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#10182b');g.addColorStop(.5,'#24164b');g.addColorStop(1,'#072b37');ctx.fillStyle=g;ctx.fillRect(0,0,w,h)}
-drawBackground(t,w,h,contextualBackgroundSettings(t,st));
+const bgSettings=(video&&video.readyState>=2&&st.bg==='auto')?{...st,bg:'none'}:contextualBackgroundSettings(t,st);drawBackground(t,w,h,bgSettings);
 if(motion)drawAutoMotionAccent(t,w,h,motion);
 const br=activeBroll(t,st);if(br&&br.mockup){drawBrollMockup(t,w,h,br.plan,br.within,st)}else if(br&&br.item&&br.item.el&&(br.item.assetType==='image'?(br.item.el.complete&&br.item.el.naturalWidth>0):br.item.el.readyState>=2)){const m=br.item.el;const enter=Math.min(1,br.within/.28,Math.max(.05,(st.brollDuration-br.within)/.22));const ease=1-Math.pow(1-Math.max(0,enter),3);ctx.save();if(br.mode==='cutaway'||br.mode==='cinematic'){
  ctx.fillStyle='#05070b';ctx.fillRect(0,0,w,h);coverDraw(m,w,h,br.mode==='cinematic'?1.055+.035*Math.sin(br.within*2):1.02+.035*Math.sin(br.within*2));
