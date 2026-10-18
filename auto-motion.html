@@ -151,7 +151,7 @@ button:hover,.filepick:hover{border-color:#c8f34a}
  .editor-layout .preview-panel .timeline-panel{margin:10px}
 }
 </style></head><body><div class="app">
-<header class="top"><div class="brand"><div class="logo logo-wordmark" aria-label="Ailabs PRO"><span class="logo-name">Ailabs</span><span class="logo-pro">PRO</span></div><div><div class="eyebrow">AILABS CREATOR TOOLS</div><h1>Auto Motion Studio</h1><div class="sub">Caption presets · Motion backgrounds · Auto B-roll</div></div></div><div class="actions"><label id="videoBtn" class="filepick" for="videoFile">＋ Upload Video</label><label class="analysis-mode-label" for="analysisMode">Mode AI <select id="analysisMode" title="Cepat menggunakan caption/tema dan 2 frame; Lengkap menganalisis audio dan hingga 8 frame."><option value="fast" selected>⚡ Cepat</option><option value="full">🎯 Lengkap</option></select></label><button type="button" id="findBrollBtn" class="primary analysis-btn" title="Analisis ucapan dan frame video, lalu cari B-roll">🤖 Analisis Video & Cari B-roll</button><label id="brollBtn" class="filepick" for="brollFiles">▧ Add B-roll clips</label><label id="audioBtn" class="filepick" for="audioFile">♫ Add Music</label><button id="playBtn" class="primary">▶ Preview</button><button id="exportBtn">⇩ Export WebM</button></div></header>
+<header class="top"><div class="brand"><div class="logo logo-wordmark" aria-label="Ailabs PRO"><span class="logo-name">Ailabs</span><span class="logo-pro">PRO</span></div><div><div class="eyebrow">AILABS CREATOR TOOLS</div><h1>Auto Motion Studio</h1><div class="sub">Caption presets · Motion backgrounds · Auto B-roll</div></div></div><div class="actions"><label id="videoBtn" class="filepick" for="videoFile">＋ Upload Video</label><label class="analysis-mode-label" for="analysisMode">Mode AI <select id="analysisMode" title="Cepat menggunakan caption/tema dan 2 frame; Lengkap menganalisis audio dan hingga 8 frame."><option value="fast" selected>⚡ Cepat</option><option value="full">🎯 Lengkap</option></select></label><button type="button" id="findBrollBtn" class="primary analysis-btn" title="Cepat: cari dari caption/tema yang tersedia. Lengkap: analisis ucapan dan frame video, lalu cari B-roll.">🤖 Analisis Video & Cari B-roll</button><label id="brollBtn" class="filepick" for="brollFiles">▧ Add B-roll clips</label><label id="audioBtn" class="filepick" for="audioFile">♫ Add Music</label><button id="playBtn" class="primary">▶ Preview</button><button id="exportBtn">⇩ Export WebM</button></div></header>
 <div class="layout editor-layout"><aside class="left-rail"><section class="panel"><div class="head"><b>01 &nbsp; Media Library</b><span class="pill" id="mediaStatus">No video</span></div><div class="panelbody"><div class="filebox"><label id="chooseVideo" class="filepick filepick-wide" for="videoFile">Import video utama</label><div class="note" id="videoName" style="margin-top:7px">MP4 / WebM</div></div><input class="fileinput" id="videoFile" type="file" accept="video/*"><div class="field" style="margin-top:10px"><div class="filebox"><label id="chooseBroll" class="filepick filepick-wide" for="brollFiles">Import klip B-roll (opsional)</label><div class="note" id="brollName" style="margin-top:7px">Opsional · pilih banyak file sekaligus</div></div><input class="fileinput" id="brollFiles" type="file" accept="video/*" multiple></div><div class="field"><div class="filebox"><label id="chooseAudio" class="filepick filepick-wide" for="audioFile">Import musik / audio</label><div class="note" id="audioName" style="margin-top:7px">Opsional</div></div><input class="fileinput" id="audioFile" type="file" accept="audio/*"></div><div class="grid2"><div class="field"><label>Rasio</label><select id="ratio"><option value="9:16">9:16 Reels</option><option value="16:9">16:9 YouTube</option><option value="1:1">1:1 Square</option></select></div><div class="field"><label>Durasi output</label><select id="durationMirror"><option value="10">10 detik</option><option value="15">15 detik</option><option value="20">20 detik</option><option value="30">30 detik</option><option value="45">45 detik</option><option value="60">60 detik</option></select></div></div></div></section><section class="panel broll-style-panel" id="brollStylePanel">
 <div class="head"><b>02 &nbsp; B-roll Library</b><span class="pill">Pilih gaya</span></div><div class="panelbody"><input type="hidden" id="brollStyle" value="auto">
 <p class="style-intro">Pilih tampilan sisipan B-roll. Gaya ini dipakai saat AI menyusun visual berdasarkan narasi video.</p>
@@ -556,9 +556,15 @@ async function searchStockBroll(options={}){
  $('brollMode').value='auto';
  let captionText=$('captionText').value.trim();
  const theme=($('brollTheme')?.value||'').trim();
- if(!videoURL&&!theme&&!subtitleCues.length&&!captionText){stockBrollError='Upload video atau tambahkan tema/caption sebelum mencari B-roll.';syncQuickControls();if(!silent)message(stockBrollError);return;}
- stockBrollBusy=true;stockBrollError='';syncQuickControls();
  const analysisMode=$("analysisMode")?.value||"fast";
+ const chosenStyle=$('brollStyle')?.value||'auto';
+ const hasCustomCaption=!!captionText&&captionText.trim().toLocaleUpperCase()!=='CERITAMU LAYAK DIDENGAR';
+ if(!videoURL&&!theme&&!subtitleCues.length&&!hasCustomCaption){stockBrollError='Upload video atau tambahkan tema/caption sebelum mencari B-roll.';syncQuickControls();if(!silent)message(stockBrollError);return;}
+ if(analysisMode==="fast"&&videoURL&&!subtitleCues.length&&!theme&&!hasCustomCaption&&chosenStyle!=="ui"){
+  stockBrollError='Mode Cepat tidak memuat AI transkrip/visual. Isi Tema Pencarian atau Caption sesuai isi video, atau pilih 🎯 Lengkap agar video dianalisis otomatis.';
+  syncQuickControls();if(!silent)message(stockBrollError);return;
+ }
+ stockBrollBusy=true;stockBrollError='';syncQuickControls();
  // Fast mode skips the full-duration audio pass when timestamps are not already available.
  // Full mode transcribes speech first so B-roll can follow the spoken narrative.
  if(videoURL&&!subtitleCues.length&&analysisMode==="full"){
@@ -571,10 +577,10 @@ async function searchStockBroll(options={}){
   }
  }
  if(videoURL&&!subtitleCues.length&&analysisMode==="fast"){
-  message("Mode Cepat · transkrip audio dilewati agar analisis lebih singkat; memakai tema/caption yang tersedia dan frame visual.");
+  message("Mode Cepat · memakai caption/tema yang tersedia; pemrosesan audio penuh dan model AI visual dilewati.");
  }
  // Then inspect representative visual frames from the uploaded video itself.
- if(videoURL&&videoVisualAnalysisForURL!==videoURL){
+ if(analysisMode==="full"&&videoURL&&videoVisualAnalysisForURL!==videoURL){
   try{await analyzeUploadedVideoVisually();}
   catch(error){
    videoVisualAnalysisError=error&&error.message?error.message:String(error);
