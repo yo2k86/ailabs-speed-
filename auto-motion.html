@@ -520,26 +520,30 @@ function buildSmartBrollPlan(){
  const st=settings(),step=Math.max(7,st.brollInterval),limit=Math.max(0,duration-st.brollDuration);smartBrollPlan=[];
  if(st.brollMode!=='auto')return smartBrollPlan;
  const theme=(document.getElementById('brollTheme')?.value||'').trim();
+ const manualText=(document.getElementById('captionText')?.value||'').trim();
+ const manualParts=(manualText.match(/[^.!?。！？]+[.!?。！？]?/g)||[]).map(x=>x.trim()).filter(Boolean);
+ const planCount=Math.max(1,Math.ceil(Math.max(0,limit-st.brollStart)/step));
  for(let at=st.brollStart,guard=0;at<limit&&guard<40;at+=step,guard++){
   const segmentEnd=Math.min(limit,at+step);
   const cues=subtitleCues.filter(c=>c.start>=at&&c.start<segmentEnd);
   const text=cues.map(c=>String(c.text||'').trim()).filter(Boolean).join(' ').trim();
+  const manualCaption=(!text&&!subtitleCues.length&&manualParts.length)?manualParts[Math.min(manualParts.length-1,Math.floor(guard*manualParts.length/planCount))]:'';
+  const narration=text||manualCaption;
   const visual=nearestVideoVisualAnalysis(at+Math.min(st.brollDuration/2,1.2));
   const visualText=visual?String(visual.description||'').trim():'';
-  const effectiveText=[theme,text,visualText].filter(Boolean).join(' ').trim();
-  const classifyText=text.trim()||theme||visualText||'';
+  const classifyText=narration||theme||visualText||'';
   const kind=classifyBrollCue(classifyText);
-  // The spoken segment is primary. Visual caption is only a fallback when no transcript exists.
-  const queryText=text.trim()||theme.trim()||visualText.trim();
+  // Prefer timestamped speech, then the matching manual-caption fragment, theme, and visual description.
+  const queryText=narration||theme.trim()||visualText.trim();
   const query=queryText?brollSearchQuery(kind,queryText):'';
-  const summary=[text?'Narasi: '+text:'',visualText?'Visual: '+visualText:'',theme?'Tema: '+theme:''].filter(Boolean);
+  const summary=[narration?'Narasi: '+narration:'',visualText?'Visual: '+visualText:'',theme?'Tema: '+theme:''].filter(Boolean);
   smartBrollPlan.push({
    start:cues.length?Math.max(at,cues[0].start):at,
    kind,
    reason:summary.length?summary.join(' · '):'Menunggu hasil analisis visual/caption.',
    source:'stock',
-   cueText:[text,visualText].filter(Boolean).join(' '),
-   transcriptText:text,
+   cueText:[narration,visualText].filter(Boolean).join(' '),
+   transcriptText:text||manualCaption,
    visualText,
    query
   });
