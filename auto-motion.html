@@ -535,7 +535,7 @@ async function searchStockBroll(options={}){
   const settled=await Promise.allSettled(queries.map(async query=>{
    const plan=smartBrollPlan.find(p=>p.query===query);
    const chosenStyle=$('brollStyle')?.value||'auto';
-   const assetType=(chosenStyle==='photo'||plan&&plan.kind==='Illustrative B-roll')?'image':'video';
+   const assetType=chosenStyle==='photo'||(chosenStyle==='auto'&&plan&&plan.kind==='Illustrative B-roll')?'image':'video';
    const endpoint=assetType==='image'?'/api/broll-image':'/api/broll';
    const response=await fetch(endpoint+'?q='+encodeURIComponent(query)+'&per_page=8',{method:'GET',headers:{Accept:'application/json'}});
    const data=await response.json().catch(()=>({}));
@@ -726,7 +726,7 @@ function activeBroll(t,st){
     if(selectedStyle==='ui'||(selectedStyle==='auto'&&shouldUseUiMockup(p)))return {mockup:true,within,mode:'overlay',cycle:i,plan:p};
     const matching=stockBroll.filter(x=>p.query&&x.query===p.query&&(selectedStyle==='photo'?x.assetType==='image':selectedStyle==='auto'?true:x.assetType!=='image'));
     if(matching.length){
-     const mode=selectedStyle==='cutaway'?'cutaway':selectedStyle==='cinematic'?'cinematic':selectedStyle==='split'?'split':'overlay';
+     const mode=selectedStyle==='cutaway'?'cutaway':selectedStyle==='cinematic'?'cinematic':selectedStyle==='split'?'split':selectedStyle==='floating'?'floating':'overlay';
      return {item:matching[i%matching.length],within,mode,cycle:i,auto:false,external:true,plan:p,style:selectedStyle};
     }
     return null;
